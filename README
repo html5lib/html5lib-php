@@ -1,0 +1,10 @@
+This implementation doesn't work yet. Bits and pieces are getting written
+at a time.
+
+This is an implementation of the HTML5 specification for PHP. More friendly
+details forthcoming, but here are some notes:
+
+* We don't use PHP's DOM because it is not tolerant of certain types of
+  errors that HTML 5 allows (for example, an element "foo@bar")
+
+    vim: et sw=4 sts=4
