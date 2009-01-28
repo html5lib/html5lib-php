@@ -212,7 +212,7 @@ class HTML5_Tokenizer {
         
         /* Any occurrences of any characters in the ranges U+0001 to
         U+0008, U+000B,  U+000E to U+001F,  U+007F  to U+009F,
-        U+D800 to U+DFFF , U+FDD0 to U+FDDF, and
+        U+D800 to U+DFFF , U+FDD0 to U+FDEF, and
         characters U+FFFE, U+FFFF, U+1FFFE, U+1FFFF, U+2FFFE, U+2FFFF,
         U+3FFFE, U+3FFFF, U+4FFFE, U+4FFFF, U+5FFFE, U+5FFFF, U+6FFFE,
         U+6FFFF, U+7FFFE, U+7FFFF, U+8FFFE, U+8FFFF, U+9FFFE, U+9FFFF,
@@ -2063,7 +2063,7 @@ class HTML5_Tokenizer {
 
             /* Otherwise, if the number is in the range 0x0000 to 0x0008,
             U+000B,  U+000E to 0x001F,  0x007F  to 0x009F, 0xD800 to 0xDFFF ,
-            0xFDD0 to 0xFDDF, or is one of 0xFFFE, 0xFFFF, 0x1FFFE, 0x1FFFF,
+            0xFDD0 to 0xFDEF, or is one of 0xFFFE, 0xFFFF, 0x1FFFE, 0x1FFFF,
             0x2FFFE, 0x2FFFF, 0x3FFFE, 0x3FFFF, 0x4FFFE, 0x4FFFF, 0x5FFFE,
             0x5FFFF, 0x6FFFE, 0x6FFFF, 0x7FFFE, 0x7FFFF, 0x8FFFE, 0x8FFFF,
             0x9FFFE, 0x9FFFF, 0xAFFFE, 0xAFFFF, 0xBFFFE, 0xBFFFF, 0xCFFFE,
@@ -2077,7 +2077,7 @@ class HTML5_Tokenizer {
                 $codepoint >= 0x000E && $codepoint <= 0x001F ||
                 $codepoint >= 0x007F && $codepoint <= 0x009F ||
                 $codepoint >= 0xD800 && $codepoint <= 0xDFFF ||
-                $codepoint >= 0xFDD0 && $codepoint <= 0xFDDF ||
+                $codepoint >= 0xFDD0 && $codepoint <= 0xFDEF ||
                 $codepoint == 0x000B ||
                 $codepoint == 0xFFFE || $codepoint == 0xFFFF ||
                 $codepoint == 0x1FFFE || $codepoint == 0x1FFFF ||
