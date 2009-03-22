@@ -5,7 +5,8 @@ This is an implementation of the HTML5 specification for PHP. More friendly
 details forthcoming, but here are some notes:
 
 * To setup unit tests, you need to add a small stub file test-settings.php
-  that contains $simpletest_location = 'path/to/simpletest/';
+  that contains $simpletest_location = 'path/to/simpletest/'; This needs to
+  be version 1.1 (or, until that is released, SVN trunk) of SimpleTest.
 
 * We don't want to ultimately use PHP's DOM because it is not tolerant
   of certain types of errors that HTML 5 allows (for example, an element
