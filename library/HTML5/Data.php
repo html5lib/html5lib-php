@@ -69,29 +69,29 @@ class HTML5_Data
      *       shamelessly stolen from Feyd (which is in public domain).
      */
     public static function utf8chr($code) {
-        if($code > 1114111 or $code < 0 or
-          ($code >= 55296 and $code <= 57343) ) {
+        if($code > 0x10FFFF or $code < 0x0 or
+          ($code >= 0xD800 and $code <= 0xDFFF) ) {
             // bits are set outside the "valid" range as defined
             // by UNICODE 4.1.0
-            return '';
+            return "\xEF\xBF\xBD";
         }
 
         $x = $y = $z = $w = 0;
-        if ($code < 128) {
+        if ($code < 0x80) {
             // regular ASCII character
             $x = $code;
         } else {
             // set up bits for UTF-8
-            $x = ($code & 63) | 128;
-            if ($code < 2048) {
-                $y = (($code & 2047) >> 6) | 192;
+            $x = ($code & 0x3F) | 0x80;
+            if ($code < 0x800) {
+               $y = (($code & 0x7FF) >> 6) | 0xC0;
             } else {
-                $y = (($code & 4032) >> 6) | 128;
-                if($code < 65536) {
-                    $z = (($code >> 12) & 15) | 224;
+                $y = (($code & 0xFC0) >> 6) | 0x80;
+                if($code < 0x10000) {
+                    $z = (($code >> 12) & 0x0F) | 0xE0;
                 } else {
-                    $z = (($code >> 12) & 63) | 128;
-                    $w = (($code >> 18) & 7)  | 240;
+                    $z = (($code >> 12) & 0x3F) | 0x80;
+                    $w = (($code >> 18) & 0x07) | 0xF0;
                 }
             }
         }

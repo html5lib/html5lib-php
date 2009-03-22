@@ -175,12 +175,11 @@ class HTML5_Tokenizer {
         
         // XXX currently assuming input data is UTF-8; once we
         // build encoding detection this will no longer be the case
-        if (function_exists('mb_convert_encoding')) {
-            $orig = ini_get('mbstring.substitute_character');
-            ini_set('mbstring.substitute_character', "\xEF\xBF\xBD");
-            $data = mb_convert_encoding($data, 'UTF-8', 'UTF-8');
-            ini_set('mbstring.substitute_character', $orig);
-        } elseif (function_exists('iconv')) {
+        //
+        // We previously had an mbstring implementation here, but that
+        // implementation is heavily non-conforming, so it's been
+        // omitted.
+        if (function_exists('iconv')) {
             // non-conforming
             $data = iconv('UTF-8', 'UTF-8//IGNORE', $data);
         } else {
@@ -190,7 +189,7 @@ class HTML5_Tokenizer {
 
         /* One leading U+FEFF BYTE ORDER MARK character must be
         ignored if any are present. */
-        if (strlen($data) >= 3 && substr($data, 0, 3) === "\xEF\xBB\xBF") {
+        if (substr($data, 0, 3) === "\xEF\xBB\xBF") {
             $data = substr($data, 3);
         }
         
@@ -222,6 +221,8 @@ class HTML5_Tokenizer {
         or permanently undefined Unicode characters.) */
         // XXX not implemented!
         // code for this exists later below, factor it out
+        // The most efficient way of implementing this is probably
+        // PCRE; strtr would work but have a high memory cost.
 
         $this->data = $data;
         $this->char = -1;
@@ -343,6 +344,10 @@ class HTML5_Tokenizer {
     }
 
     private function dataState() {
+
+        // Possible optimization: mark text tokens that contain entirely
+        // whitespace as whitespace tokens.
+
         /* Consume the next input character */
         $char = $this->c;
 
@@ -447,9 +452,8 @@ class HTML5_Tokenizer {
             otherwise would also be treated as a character token and emit it
             as a single character token. Stay in the data state. */
             // XXX The complexity of the extra code we would need
-            // to insert for this optimization makes it suspicious.
-            // At the very least, we will need to think twice before
-            // applying this optimization to other cases.
+            // to insert for this optimization makes justifying this
+            // for less used codepaths difficult.
             
             $mask = '->';
             if ($amp_cond) $mask .= '&';
@@ -457,9 +461,6 @@ class HTML5_Tokenizer {
             
             $len  = strcspn($this->data, $mask, $this->char + 1);
             $char = substr($this->data, $this->char + 1, $len);
-            
-            // OOO It might be faster to just iterate through the
-            // string; performance testing is necessary
             
             // calculate number of newlines
             $nl_cnt = substr_count($char, "\n");
@@ -904,7 +905,7 @@ class HTML5_Tokenizer {
         attribute on the token with the exact same name, then this
         is a parse error and the new attribute must be dropped, along
         with the value that gets associated with it (if any). */
-        // this is implemented in the emitToken method
+        // this might be implemented in the emitToken method
     }
 
     private function afterAttributeNameState() {
