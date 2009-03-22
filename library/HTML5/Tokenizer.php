@@ -564,24 +564,28 @@ class HTML5_Tokenizer {
                     Switch to the close tag open state. */
                     $this->state = 'closeTagOpen';
 
-                } elseif(preg_match('/^[A-Za-z]$/', $char)) {
-                    // possible optimization: ctype_alpha() in C locale,
-                    // or ctype_upper()/ctype_lower(). This could also
-                    // be applied to later code.
+                } elseif('A' <= $char && $char <= 'Z') {
                     /* U+0041 LATIN LETTER A through to U+005A LATIN LETTER Z
                     Create a new start tag token, set its tag name to the lowercase
                     version of the input character (add 0x0020 to the character's code
                     point), then switch to the tag name state. (Don't emit the token
                     yet; further details will be filled in before it is emitted.) */
+                    $this->token = array(
+                        'name'  => strtolower($char),
+                        'type'  => self::STARTTAG,
+                        'attr'  => array()
+                    );
+
+                    $this->state = 'tagName';
+
+                } elseif('a' <= $char && $char <= 'z') {
                     /* U+0061 LATIN SMALL LETTER A through to U+007A LATIN SMALL LETTER Z
                     Create a new start tag token, set its tag name to the input
                     character, then switch to the tag name state. (Don't emit
                     the token yet; further details will be filled in before it
                     is emitted.) */
-                    // optimization: run strtolower regardless of case.
-                    // this probably is faster than two preg_matches
                     $this->token = array(
-                        'name'  => strtolower($char),
+                        'name'  => $char,
                         'type'  => self::STARTTAG,
                         'attr'  => array()
                     );
@@ -690,20 +694,27 @@ class HTML5_Tokenizer {
             next input character: */
             $char = $this->c;
 
-            if (preg_match('/^[A-Za-z]$/', $char)) {
+            if ('A' <= $char && $char <= 'Z') {
                 /* U+0041 LATIN LETTER A through to U+005A LATIN LETTER Z
                 Create a new end tag token, set its tag name to the lowercase version
                 of the input character (add 0x0020 to the character's code point), then
                 switch to the tag name state. (Don't emit the token yet; further details
                 will be filled in before it is emitted.) */
+                $this->token = array(
+                    'name'  => strtolower($char),
+                    'type'  => self::ENDTAG
+                );
+
+                $this->state = 'tagName';
+
+            } elseif ('a' <= $char && $char <= 'z') {
                 /* U+0061 LATIN SMALL LETTER A through to U+007A LATIN SMALL LETTER Z
                 Create a new end tag token, set its tag name to the
                 input character, then switch to the tag name state.
                 (Don't emit the token yet; further details will be
                 filled in before it is emitted.) */
-                // optimization: strtolower all letters
                 $this->token = array(
-                    'name'  => strtolower($char),
+                    'name'  => $char,
                     'type'  => self::ENDTAG
                 );
 
@@ -756,9 +767,15 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        // U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
-        // can be found in the Anything else condition
-        
+        } elseif('A' <= $char && $char <= 'Z') {
+            // possible optimization: glob further
+            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
+            Append the lowercase version of the current input
+            character (add 0x0020 to the character's code point) to
+            the current tag token's tag name. Stay in the tag name state. */
+            $this->token['name'] .= strtolower($char);
+            $this->state = 'tagName';
+
         } elseif($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
@@ -768,16 +785,11 @@ class HTML5_Tokenizer {
             $this->EOF();
 
         } else {
-            // optimization: lowercase all
             // possible optimization: glob further
-            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
-            Append the lowercase version of the current input
-            character (add 0x0020 to the character's code point) to
-            the current tag token's tag name. Stay in the tag name state. */
             /* Anything else
             Append the current input character to the current tag token's tag name.
             Stay in the tag name state. */
-            $this->token['name'] .= strtolower($char);
+            $this->token['name'] .= $char;
             $this->state = 'tagName';
         }
     }
@@ -806,6 +818,20 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
+        } elseif('A' <= $char && $char <= 'Z') {
+            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
+            Start a new attribute in the current tag token. Set that
+            attribute's name to the lowercase version of the current
+            input character (add 0x0020 to the character's code
+            point), and its value to the empty string. Switch to the
+            attribute name state.*/
+            $this->token['attr'][] = array(
+                'name'  => strtolower($char),
+                'value' => ''
+            );
+
+            $this->state = 'attributeName';
+
         } elseif($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
@@ -822,18 +848,12 @@ class HTML5_Tokenizer {
             below. */
             // insert parse error here
 
-            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
-            Start a new attribute in the current tag token. Set that
-            attribute's name to the lowercase version of the current
-            input character (add 0x0020 to the character's code
-            point), and its value to the empty string. Switch to the
-            attribute name state.*/
             /* Anything else
             Start a new attribute in the current tag token. Set that attribute's
             name to the current input character, and its value to the empty string.
             Switch to the attribute name state. */
             $this->token['attr'][] = array(
-                'name'  => strtolower($char),
+                'name'  => $char,
                 'value' => ''
             );
 
@@ -870,6 +890,17 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
+        } elseif('A' <= $char && $char <= 'Z') {
+            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
+            Append the lowercase version of the current input
+            character (add 0x0020 to the character's code point) to
+            the current attribute's name. Stay in the attribute name
+            state. */
+            $last = count($this->token['attr']) - 1;
+            $this->token['attr'][$last]['name'] .= strtolower($char);
+
+            $this->state = 'attributeName';
+
         } elseif($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
@@ -884,16 +915,11 @@ class HTML5_Tokenizer {
             Parse error. Treat it as per the "anything else"
             entry below. */
             
-            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
-            Append the lowercase version of the current input
-            character (add 0x0020 to the character's code point) to
-            the current attribute's name. Stay in the attribute name
-            state. */
             /* Anything else
             Append the current input character to the current attribute's name.
             Stay in the attribute name state. */
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['name'] .= strtolower($char);
+            $this->token['attr'][$last]['name'] .= $char;
 
             $this->state = 'attributeName';
         }
@@ -937,6 +963,20 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
+        } elseif('A' <= $char && $char <= 'Z') {
+            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
+            Start a new attribute in the current tag token. Set that
+            attribute's name to the lowercase version of the current
+            input character (add 0x0020 to the character's code
+            point), and its value to the empty string. Switch to the
+            attribute name state. */
+            $this->token['attr'][] = array(
+                'name'  => strtolower($char),
+                'value' => ''
+            );
+
+            $this->state = 'attributeName';
+
         } elseif($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
@@ -951,18 +991,12 @@ class HTML5_Tokenizer {
             Parse error. Treat it as per the "anything else"
             entry below. */
             
-            /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
-            Start a new attribute in the current tag token. Set that
-            attribute's name to the lowercase version of the current
-            input character (add 0x0020 to the character's code
-            point), and its value to the empty string. Switch to the
-            attribute name state. */
             /* Anything else
             Start a new attribute in the current tag token. Set that attribute's
             name to the current input character, and its value to the empty string.
             Switch to the attribute name state. */
             $this->token['attr'][] = array(
-                'name'  => strtolower($char),
+                'name'  => $char,
                 'value' => ''
             );
 
@@ -1483,7 +1517,7 @@ class HTML5_Tokenizer {
 
             $this->state = 'data';
 
-        } elseif(preg_match('/^[A-Z]$/', $char)) {
+        } elseif('A' <= $char && $char <= 'Z') {
             /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
             Create a new DOCTYPE token. Set the token's name to the
             lowercase version of the input character (add 0x0020 to
@@ -1543,7 +1577,7 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        } elseif(preg_match('/^[A-Z]$/', $char)) {
+        } elseif('A' <= $char && $char <= 'Z') {
             /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
             Append the lowercase version of the input character
             (add 0x0020 to the character's code point) to the current
