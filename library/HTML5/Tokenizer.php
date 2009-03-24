@@ -270,6 +270,7 @@ class HTML5_Tokenizer {
         } elseif(extension_loaded('xml')) {
             return strlen(utf8_decode($findLengthOf));
         } else {
+            // OOO: Try using count_chars()
             for ($i = 0, $charLen = 0, $byteLen = strlen($findLengthOf); $i < $byteLen; $i++, $charLen++) {
                 $value = ord($findLengthOf[$i]);
                 if(($value & 0xE0) === 0xC0) {
