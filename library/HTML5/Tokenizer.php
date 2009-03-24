@@ -52,19 +52,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // the character in. The same goes for EOF, except we directly invoke
 // the EOF() method.
 
-// UTF8COL
-// This is a duplicated bit of code that advances the column pointer.
-// It exists in various permutations, depending on what sorts of
-// assumptions we can make. If an operation is not performed frequently,
-// however, you should really consider using the seek() method.
-// OOO Possibly the UTF-8 byte detection might be sped up by a clever
-// bitwise operation, or a lookup table.
-// OOO If we have a table of the multibyte characters (there's 50 of
-// them total), we could do a clever count for those characters, and
-// with some arithmetic subtract from the total. Another possibility
-// is to use count_chars() to determine the number of these chars
-// (it operates bytewise, yay!)
-
 class HTML5_Tokenizer {
     /**
      * The string data we're parsing.
@@ -102,25 +89,7 @@ class HTML5_Tokenizer {
      * The value of the auto-consumed byte. See AUTO-CONSUMPTION.
      */
     private $c;
-    
-    /**
-     * When a byte is encountered that indicates the start of a
-     * multibyte sequence, we need to set skipBytes to the projected
-     * length of the UTF-8 character - 1, so that we don't increment
-     * col (instead, decrement skipBytes).
-     */
-    private $skipBytes = 0;
-    
-    /**
-     * Current line number that the $char pointer resides.
-     */
-    protected $line = 1;
-    
-    /**
-     * Current col number that the $char pointer resides.
-     */
-    protected $col  = 0;
-    
+        
     /**
      * Current content model we are parsing as.
      */
@@ -244,24 +213,6 @@ class HTML5_Tokenizer {
             if (!isset($this->noConsumeStates[$this->state])) {
                 // consume a character, and assign it to $this->c
                 $this->c = (++$this->char < $this->EOF) ? $this->data[$this->char] : false;
-                
-                // UTF8COL
-                if ($this->skipBytes) {
-                    $this->skipBytes--;
-                } else {
-                    if ($this->c === "\n") {
-                        $this->line++;
-                        $this->col = 0;
-                    } else {
-                        $this->col++;
-                        $ord = ord($this->c);
-                        if ($ord >= 0xC2 && $ord <= 0xF4) {
-                            if ($ord <= 0xDF) $this->skipBytes = 1;
-                            elseif ($ord <= 0xEF) $this->skipBytes = 2;
-                            else $this->skipBytes = 3;
-                        }
-                    }
-                }
             }    
             // OOO get rid of this concatentation
             $this->{$this->state.'State'}();
@@ -276,6 +227,67 @@ class HTML5_Tokenizer {
         return $this->tree->save();
     }
 
+    /**
+     * Returns the current line that the tokenizer is at.
+     */
+    public function getCurrentLine() {
+        // Check the string isn't empty
+        if($this->EOF) {
+            // Add one to $this->char because we want the number for the next
+            // byte to be processed.
+            return substr_count($this->data, "\n", 0, $this->char + 1) + 1;
+        } else {
+            // If the string is empty, we are on the first line (sorta).
+            return 1;
+        }
+    }
+
+    /**
+     * Returns the current column of the current line that the tokenizer is at.
+     */
+    public function getColumnOffset() {
+        // strrpos is weird, and the offset needs to be negative for what we
+        // want (i.e., the last \n before $this->char). This needs to not have
+        // one (to make it point to the next character, the one we want the
+        // position of) added to it because strrpos's behaviour includes the
+        // final offset byte.
+        $lastLine = strrpos($this->data, "\n", $this->char - strlen($this->data));
+        
+        // However, for here we want the length up until the next byte to be
+        // processed, so add one to the current byte ($this->char).
+        if($lastLine !== false) {
+            $findLengthOf = substr($this->data, $lastLine + 1, $this->char - $lastLine);
+        } else {
+            $findLengthOf = substr($this->data, 0, $this->char + 1);
+        }
+        
+        // Get the length for the string we need.
+        if(extension_loaded('iconv')) {
+            return iconv_strlen($findLengthOf, 'utf-8');
+        } elseif(extension_loaded('mbstring')) {
+            return mb_strlen($findLengthOf, 'utf-8');
+        } elseif(extension_loaded('xml')) {
+            return strlen(utf8_decode($findLengthOf));
+        } else {
+            for ($i = 0, $charLen = 0, $byteLen = strlen($findLengthOf); $i < $byteLen; $i++, $charLen++) {
+                $value = ord($findLengthOf[$i]);
+                if(($value & 0xE0) === 0xC0) {
+                    // Two byte sequence, so skip one byte
+                    $i += 1;
+                }
+                elseif(($value & 0xF0) === 0xE0) {
+                    // Three byte sequence, so skip two bytes
+                    $i += 2;
+                }
+                elseif(($value & 0xF8) === 0xF0) {
+                    // Four byte sequence, so skip three bytes
+                    $i += 3;
+                }
+            }
+            return $charLen;
+        }
+    }
+    
     /**
      * Retrieve the currently consume character.
      * @note This performs bounds checking
@@ -310,23 +322,6 @@ class HTML5_Tokenizer {
         for ($i = 0; $i < $count; $i++) {
             $this->char++;
             if ($this->char === $this->EOF) break;
-            // UTF8COL
-            if ($this->skipBytes) {
-                $this->skipBytes--;
-            } else {
-                if ($this->data[$this->char] === "\n") {
-                    $this->line++;
-                    $this->col = 0;
-                } else {
-                    $this->col++;
-                    $ord = ord($this->data[$this->char]);
-                    if ($ord >= 0xC2 && $ord <= 0xF4) {
-                        if ($ord <= 0xDF) $this->skipBytes = 1;
-                        elseif ($ord <= 0xEF) $this->skipBytes = 2;
-                        else $this->skipBytes = 3;
-                    }
-                }
-            }
         }
     }
 
@@ -461,36 +456,7 @@ class HTML5_Tokenizer {
             
             $len  = strcspn($this->data, $mask, $this->char + 1);
             $char = substr($this->data, $this->char + 1, $len);
-            
-            // calculate number of newlines
-            $nl_cnt = substr_count($char, "\n");
-            $this->line += $nl_cnt;
-            // calculate last newline
-            if ($nl_cnt) {
-                $i = strrpos($char, "\n") + 1;
-                $this->skipBytes = 0;
-                $this->col = 0;
-            } else {
-                $i = 0;
-            }
-            // UTF8COL
-            // We assume there are no newlines in the string we are
-            // iterating over.
-            for (; $i < $len; $i++) {
-                if ($this->skipBytes) {
-                    $this->skipBytes--;
-                } else {
-                    $this->col++;
-                    $ord = ord($char[$i]);
-                    if ($ord >= 0xC2 && $ord <= 0xF4) {
-                        if ($ord <= 0xDF) $this->skipBytes = 1;
-                        elseif ($ord <= 0xEF) $this->skipBytes = 2;
-                        else $this->skipBytes = 3;
-                    }
-                }
-            }
-            // -- end line number code
-            
+                        
             $this->char += $len;
 
             $this->emitToken(array(
@@ -1302,7 +1268,6 @@ class HTML5_Tokenizer {
         data is the empty string, and switch to the comment state. */
         if($this->character($this->char, 2) === '--') {
             $this->char++;
-            $this->col++;
             $this->state = 'commentStart';
             $this->token = array(
                 'data' => '',
@@ -1314,7 +1279,6 @@ class HTML5_Tokenizer {
         DOCTYPE state. */
         } elseif(strtoupper($this->character($this->char, 7)) === 'DOCTYPE') {
             $this->char += 6;
-            $this->col  += 6;
             $this->state = 'doctype';
 
         // XXX not implemented
@@ -1646,7 +1610,6 @@ class HTML5_Tokenizer {
                 // remember, we've already consumed the first P of
                 // the nextSix. I believe this is an error in the spec.
                 $this->char += 5;
-                $this->col  += 5;
                 $this->state = 'beforeDoctypePublicIdentifier';
 
             } elseif ($nextSix === 'SYSTEM') {
@@ -1655,7 +1618,6 @@ class HTML5_Tokenizer {
                 consume those characters and switch to the before
                 DOCTYPE system identifier state. */
                 $this->char += 5;
-                $this->col  += 5;
                 $this->state = 'beforeDoctypeSystemIdentifier';
 
             } else {
@@ -2018,9 +1980,7 @@ class HTML5_Tokenizer {
         } elseif ($next == '#') {
             /* Consume the U+0023 NUMBER SIGN. */
             $start = $this->char;
-            $startcol = $this->col;
             $this->char++;
-            $this->col++;
             /* The behavior further depends on the character after
             the U+0023 NUMBER SIGN: */
             switch($this->character($this->char + 1)) {
@@ -2030,7 +1990,6 @@ class HTML5_Tokenizer {
                 case 'X':
                     /* Consume the X. */
                     $this->char++;
-                    $this->col++;
                     /* Follow the steps below, but using the range of
                     characters U+0030 DIGIT ZERO through to U+0039 DIGIT
                     NINE, U+0061 LATIN SMALL LETTER A through to U+0066
@@ -2060,14 +2019,12 @@ class HTML5_Tokenizer {
             if ($consumed !== '') {
                 $len = strlen($consumed);
                 $this->char += $len;
-                $this->col  += $len;
             } else {
                 /* If no characters match the range, then don't consume
                 any characters (and unconsume the U+0023 NUMBER SIGN
                 character and, if appropriate, the X character). This
                 is a parse error; nothing is returned. */
                 $this->char = $start;
-                $this->col  = $startcol;
                 return false;
             }
             
@@ -2075,7 +2032,6 @@ class HTML5_Tokenizer {
             consume that too. If it isn't, there is a parse error. */
             if ($this->character($this->char + 1) === ';') {
                 $this->char++;
-                $this->col++;
             } else {
                 // parse error
             }
@@ -2156,7 +2112,6 @@ class HTML5_Tokenizer {
             $consumed = $this->characters('0-9A-Za-z;', $this->char + 1);
             $len = strlen($consumed);
             $start = $this->char;
-            $startcol = $this->col;
 
             $refs = HTML5_Data::getNamedCharacterReferences();
             $codepoint = false;
@@ -2175,7 +2130,6 @@ class HTML5_Tokenizer {
             /* If the last character matched is not a U+003B SEMICOLON
             (;), there is a parse error. */
             $this->char += $c;
-            $this->col  += $c;
             $semicolon = true;
             if (substr($id, -1) !== ';') {
                 // parse error
@@ -2198,7 +2152,6 @@ class HTML5_Tokenizer {
                 preg_match('/^[0-9A-Za-z]$/', $this->character($this->char + 1))
             ) {
                 $this->char = $start;
-                $this->col  = $startcol;
                 return false;
             }
 

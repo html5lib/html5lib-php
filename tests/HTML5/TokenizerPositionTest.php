@@ -8,8 +8,8 @@ class HTML5_PositionTestableTokenizer extends HTML5_TestableTokenizer
     public $outputCols  = array();
     protected function emitToken($token) {
         parent::emitToken($token);
-        $this->outputLines[] = $this->line;
-        $this->outputCols[]  = $this->col;
+        $this->outputLines[] = $this->getCurrentLine();
+        $this->outputCols[]  = $this->getColumnOffset();
     }
 }
 
