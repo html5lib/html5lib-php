@@ -4,6 +4,7 @@
 
 Copyright 2007 Jeroen van der Meer <http://jero.net/>
 Copyright 2008 Edward Z. Yang <http://htmlpurifier.org/>
+Copyright 2009 Geoffrey Sneddon <http://gsnedders.com/>
 
 Permission is hereby granted, free of charge, to any person obtaining a 
 copy of this software and associated documentation files (the 
