@@ -704,7 +704,7 @@ class HTML5_Tokenizer {
         // Consume the next input character:
         $char = $this->c;
 
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
             U+000A LINE FEED (LF)
             U+000C FORM FEED (FF)
@@ -755,7 +755,7 @@ class HTML5_Tokenizer {
         $char = $this->c;
 
         // this conditional is optimized, check bottom
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
             U+000A LINE FEED (LF)
             U+000C FORM FEED (FF)
@@ -822,7 +822,7 @@ class HTML5_Tokenizer {
         $char = $this->c;
 
         // this conditional is optimized, check bottom
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
             U+000A LINE FEED (LF)
             U+000C FORM FEED (FF)
@@ -895,7 +895,7 @@ class HTML5_Tokenizer {
         $char = $this->c;
 
         // this is an optimized conditional, check the bottom
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
             U+000A LINE FEED (LF)
             U+000C FORM FEED (FF)
@@ -965,7 +965,7 @@ class HTML5_Tokenizer {
         $char = $this->c;
 
         // this is an optimized conditional
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
             U+000A LINE FEED (LF)
             U+000C FORM FEED (FF)
@@ -1090,7 +1090,7 @@ class HTML5_Tokenizer {
         // Consume the next input character:
         $char = $this->c;
 
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
             U+000A LINE FEED (LF)
             U+000C FORM FEED (FF)
@@ -1160,7 +1160,7 @@ class HTML5_Tokenizer {
         /* Consume the next input character: */
         $char = $this->c;
 
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
                U+000C FORM FEED (FF)
@@ -1430,7 +1430,7 @@ class HTML5_Tokenizer {
         /* Consume the next input character: */
         $char = $this->c;
 
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
                U+000C FORM FEED (FF)
@@ -1518,7 +1518,7 @@ class HTML5_Tokenizer {
         /* Consume the next input character: */
         $char = $this->c;
 
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
                U+000C FORM FEED (FF)
@@ -1567,7 +1567,7 @@ class HTML5_Tokenizer {
         /* Consume the next input character: */
         $char = $this->c;
 
-        if(preg_match('/^[\t\n\x0c ]$/', $char)) {
+        if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
                U+000C FORM FEED (FF)
