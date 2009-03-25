@@ -270,23 +270,11 @@ class HTML5_Tokenizer {
         } elseif(extension_loaded('xml')) {
             return strlen(utf8_decode($findLengthOf));
         } else {
-            // OOO: Try using count_chars()
-            for ($i = 0, $charLen = 0, $byteLen = strlen($findLengthOf); $i < $byteLen; $i++, $charLen++) {
-                $value = ord($findLengthOf[$i]);
-                if(($value & 0xE0) === 0xC0) {
-                    // Two byte sequence, so skip one byte
-                    $i += 1;
-                }
-                elseif(($value & 0xF0) === 0xE0) {
-                    // Three byte sequence, so skip two bytes
-                    $i += 2;
-                }
-                elseif(($value & 0xF8) === 0xF0) {
-                    // Four byte sequence, so skip three bytes
-                    $i += 3;
-                }
-            }
-            return $charLen;
+            $count = count_chars($findLengthOf);
+            // 0x80 = 0x7F - 0 + 1 (one added to get inclusive range)
+            // 0x33 = 0xF4 - 0x2C + 1 (one added to get inclusive range)
+            return array_sum(array_slice($count, 0, 0x80)) +
+                   array_sum(array_slice($count, 0xC2, 0x33));
         }
     }
     
