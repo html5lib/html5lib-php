@@ -729,12 +729,16 @@ class HTML5_Tokenizer {
             $this->state = 'data';
 
         } elseif('A' <= $char && $char <= 'Z') {
-            // possible optimization: glob further
             /* U+0041 LATIN CAPITAL LETTER A through to U+005A LATIN CAPITAL LETTER Z
             Append the lowercase version of the current input
             character (add 0x0020 to the character's code point) to
             the current tag token's tag name. Stay in the tag name state. */
-            $this->token['name'] .= strtolower($char);
+            $len  = strspn($this->data, self::UPPER_ALPHA, $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
+            $this->token['name'] .= strtolower($this->c . $char);
             $this->state = 'tagName';
 
         } elseif($char === false) {
@@ -746,11 +750,15 @@ class HTML5_Tokenizer {
             $this->EOF();
 
         } else {
-            // possible optimization: glob further
             /* Anything else
             Append the current input character to the current tag token's tag name.
             Stay in the tag name state. */
-            $this->token['name'] .= $char;
+            $len  = strspn($this->data, self::LOWER_ALPHA, $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
+            $this->token['name'] .= $this->c . $char;
             $this->state = 'tagName';
         }
     }
@@ -1051,8 +1059,13 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (double-quoted) state. */
+            $len  = strcspn($this->data, '"&', $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['value'] .= $char;
+            $this->token['attr'][$last]['value'] .= $this->c . $char;
 
             $this->state = 'attributeValueDoubleQuoted';
         }
@@ -1084,8 +1097,13 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (single-quoted) state. */
+            $len  = strcspn($this->data, "'&", $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['value'] .= $char;
+            $this->token['attr'][$last]['value'] .= $this->c . $char;
 
             $this->state = 'attributeValueSingleQuoted';
         }
@@ -1131,8 +1149,13 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (unquoted) state. */
+            $len  = strcspn($this->data, "\t\n\x0c &>\"'=", $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['value'] .= $char;
+            $this->token['attr'][$last]['value'] .= $this->c . $char;
 
             $this->state = 'attributeValueUnquoted';
         }
@@ -1368,7 +1391,12 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the input character to the comment token's data. Stay in
             the comment state. */
-            $this->token['data'] .= $char;
+            $len  = strcspn($this->data, '-', $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
+            $this->token['data'] .= $this->c . $char;
         }
     }
 
