@@ -125,6 +125,13 @@ class HTML5_Tokenizer {
     const COMMENT  = 3;
     const CHARACTER = 4;
     const EOF      = 5;
+    
+    // These are constants representing bunches of characters.
+    const ALPHA       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+    const UPPER_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const LOWER_ALPHA = 'abcdefghijklmnopqrstuvwxyz';
+    const DIGIT       = '0123456789';
+    const HEX         = '0123456789ABCDEFabcdef';
 
     /**
      * @param $data Data to parse
@@ -315,16 +322,14 @@ class HTML5_Tokenizer {
         }
     }
 
-    // OOO this is really inefficient; we should use strspn/strcspn
-    // with constants representing ABCDEFGHIJKLMNOPQRSTUVWXYZ, abcdefghijklmnopqrstuvwxyz and 0123456789
     /**
-     * Matches as far as possible from $start for a certain character class
+     * Matches as far as possible from $start for a certain set of bytes
      * and returns the matched substring.
-     * @param $char_class PCRE compatible character class expression
+     * @param $bytes Bytes to match.
      * @param $start Starting index to perform search
      */
-    private function characters($char_class, $start) {
-        $len = strspn($this->data, $char_class, $start);
+    private function characters($bytes, $start) {
+        $len = strspn($this->data, $bytes, $start);
         return (string) substr($this->data, $start, $len);
     }
 
@@ -581,7 +586,7 @@ class HTML5_Tokenizer {
     }
 
     private function closeTagOpenState() {
-        $next_node = strtolower($this->characters('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', $this->char));
+        $next_node = strtolower($this->characters(self::ALPHA, $this->char));
         
         // due to the flow of the HTML 5 specification, $this->token
         // is guaranteed to be the last STARTTAG emitted (the other
@@ -1987,7 +1992,7 @@ class HTML5_Tokenizer {
                     LATIN SMALL LETTER F, and U+0041 LATIN CAPITAL LETTER
                     A, through to U+0046 LATIN CAPITAL LETTER F (in other
                     words, 0123456789, ABCDEF, abcdef). */
-                    $char_class = '0123456789ABCDEFabcdef';
+                    $char_class = self::HEX;
                     /* When it comes to interpreting the
                     number, interpret it as a hexadecimal number. */
                     $hex = true;
@@ -1998,7 +2003,7 @@ class HTML5_Tokenizer {
                     /* Follow the steps below, but using the range of
                     characters U+0030 DIGIT ZERO through to U+0039 DIGIT
                     NINE (i.e. just 0123456789). */
-                    $char_class = '0123456789';
+                    $char_class = self::DIGIT;
                     /* When it comes to interpreting the number,
                     interpret it as a decimal number. */
                     $hex = false;
@@ -2100,7 +2105,7 @@ class HTML5_Tokenizer {
             // alphanumeric + semicolon string, and then working
             // our way backwards
             
-            $consumed = $this->characters('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz;', $this->char + 1);
+            $consumed = $this->characters(self::DIGIT . self::ALPHA . ';', $this->char + 1);
             $len = strlen($consumed);
             $start = $this->char;
 
