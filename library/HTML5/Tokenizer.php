@@ -1234,8 +1234,9 @@ class HTML5_Tokenizer {
         end of the file otherwise. (If the comment was started by the end of
         the file (EOF), the token is empty.) */
         
-        $data = $this->characters('^>', $this->char);
-        $this->seek(strlen($data));
+        $len = strcspn($this->data, '>', $this->char);
+        $data = (string) substr($this->data, $this->char, $len);
+        $this->char += $len;
         
         $this->emitToken(array(
             'data' => $data,
