@@ -865,8 +865,13 @@ class HTML5_Tokenizer {
             character (add 0x0020 to the character's code point) to
             the current attribute's name. Stay in the attribute name
             state. */
+            $len  = strspn($this->data, self::UPPER_ALPHA, $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['name'] .= strtolower($char);
+            $this->token['attr'][$last]['name'] .= strtolower($this->c . $char);
 
             $this->state = 'attributeName';
 
@@ -887,8 +892,13 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the current input character to the current attribute's name.
             Stay in the attribute name state. */
+            $len  = strcspn($this->data, "\t\n\x0c /=>\"'" . self::UPPER_ALPHA, $this->char + 1);
+            $char = substr($this->data, $this->char + 1, $len);
+                        
+            $this->char += $len;
+            
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['name'] .= $char;
+            $this->token['attr'][$last]['name'] .= $this->c . $char;
 
             $this->state = 'attributeName';
         }
