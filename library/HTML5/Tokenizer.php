@@ -316,7 +316,7 @@ class HTML5_Tokenizer {
     }
 
     // OOO this is really inefficient; we should use strspn/strcspn
-    // with constants representing A-Z, a-z and 0-9
+    // with constants representing ABCDEFGHIJKLMNOPQRSTUVWXYZ, abcdefghijklmnopqrstuvwxyz and 0123456789
     /**
      * Matches as far as possible from $start for a certain character class
      * and returns the matched substring.
@@ -324,8 +324,8 @@ class HTML5_Tokenizer {
      * @param $start Starting index to perform search
      */
     private function characters($char_class, $start) {
-        preg_match('#^['.$char_class.']+#', substr($this->data, $start), $matches);
-        return $matches ? $matches[0] : '';
+        $len = strspn($this->data, $char_class, $start);
+        return (string) substr($this->data, $start, $len);
     }
 
     private function dataState() {
@@ -581,7 +581,7 @@ class HTML5_Tokenizer {
     }
 
     private function closeTagOpenState() {
-        $next_node = strtolower($this->characters('A-Za-z', $this->char));
+        $next_node = strtolower($this->characters('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', $this->char));
         
         // due to the flow of the HTML 5 specification, $this->token
         // is guaranteed to be the last STARTTAG emitted (the other
@@ -1986,8 +1986,8 @@ class HTML5_Tokenizer {
                     NINE, U+0061 LATIN SMALL LETTER A through to U+0066
                     LATIN SMALL LETTER F, and U+0041 LATIN CAPITAL LETTER
                     A, through to U+0046 LATIN CAPITAL LETTER F (in other
-                    words, 0-9, A-F, a-f). */
-                    $char_class = '0-9A-Fa-f';
+                    words, 0123456789, ABCDEF, abcdef). */
+                    $char_class = '0123456789ABCDEFabcdef';
                     /* When it comes to interpreting the
                     number, interpret it as a hexadecimal number. */
                     $hex = true;
@@ -1997,8 +1997,8 @@ class HTML5_Tokenizer {
                 default:
                     /* Follow the steps below, but using the range of
                     characters U+0030 DIGIT ZERO through to U+0039 DIGIT
-                    NINE (i.e. just 0-9). */
-                    $char_class = '0-9';
+                    NINE (i.e. just 0123456789). */
+                    $char_class = '0123456789';
                     /* When it comes to interpreting the number,
                     interpret it as a decimal number. */
                     $hex = false;
@@ -2100,7 +2100,7 @@ class HTML5_Tokenizer {
             // alphanumeric + semicolon string, and then working
             // our way backwards
             
-            $consumed = $this->characters('0-9A-Za-z;', $this->char + 1);
+            $consumed = $this->characters('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz;', $this->char + 1);
             $len = strlen($consumed);
             $start = $this->char;
 
@@ -2140,7 +2140,7 @@ class HTML5_Tokenizer {
             if (
                 $inattr && !$semicolon &&
                 $this->char + 1 !== $this->EOF &&
-                preg_match('/^[0-9A-Za-z]$/', $this->character($this->char + 1))
+                preg_match('/^[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz]$/', $this->character($this->char + 1))
             ) {
                 $this->char = $start;
                 return false;
