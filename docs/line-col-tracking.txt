@@ -1,33 +1,9 @@
 Line and column number tracking
 
-The first thing is that it's trivial to do in-efficiently. The second thing
-is that it's nontrivial to do it efficiently. We have two competing interests
-at stake:
-
-1. Code brevity and comprehensibility, which means that we factor things out,
-   make methods, sub-calls, a stream class, etc. This is what the Python and
-   Ruby implementations did.
-2. Performance, which means avoiding function calls like the plague.
-
-This is mildly manageable, until you realize that column numbers are tracked
-as per Unicode characters, not bytes. Which means that if we go for (2), we
-will end up with a large amount of duplicated code. Further complicating issues
-is the fact that the initial implementation PH5P opted to make function calls
-to retrieve characters. I personally find this unacceptable.
-
-It should be noted, however, that we're already performing a dynamic function
-lookup on every character of HTML, which is ALSO unacceptable. One possible
-way of restructuring this is turning the entire thing into a giant loop with
-a giant conditional. Note that the conditional is evaluated sequentially, so
-let's test whether or not that's more expensive.
-
-Some surprising results: the cost it takes to perform all of those string
-comparisons dwarfs the cost from calling functions. If you convert the states
-into integers, however, having a gigantic loop is slightly faster SO LONG AS
-you use the loop to get rid of a function call. However, if we pull the common
-code out of the individual state functions and place it in the looper, things
-work nicely.
-
-The conclusion, I suppose, is that we're going to keep the method-based state
-machine and save on method calls by moving the common code outside. Let's do 
-this right now.
+The original implementation of this performed line and column tracking
+in place.  However, it was found that this approximately doubled the
+runtime of tokenization, so we decided to take a more optimistic approach:
+only calculate line/column numbers when explicitly asked to.  This
+is slower if we attempt to calculate line/column numbers for everything
+in the document, but if there is a small enough number of errors it
+is a great improvement.
