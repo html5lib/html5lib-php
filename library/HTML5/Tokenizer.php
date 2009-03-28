@@ -310,17 +310,6 @@ class HTML5_Tokenizer {
             }
         }
     }
-    
-    /**
-     * Advanced the character pointer by however many characters.
-     * @note This performs bounds checking
-     */
-    private function seek($count) {
-        for ($i = 0; $i < $count; $i++) {
-            $this->char++;
-            if ($this->char === $this->EOF) break;
-        }
-    }
 
     /**
      * Matches as far as possible from $start for a certain set of bytes
