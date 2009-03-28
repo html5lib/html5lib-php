@@ -180,11 +180,19 @@ class HTML5_Tokenizer {
         to LF characters. Thus, newlines in HTML DOMs are represented
         by LF characters, and there are never any CR characters in the
         input to the tokenization stage. */
-        $data = strtr($data, array(
-            "\0"   => "\xEF\xBF\xBD",
-            "\r\n" => "\n",
-            "\r"   => "\n"
-        ));
+        $data = str_replace(
+            array(
+                "\0",
+                "\r\n",
+                "\r"
+            ),
+            array(
+                "\xEF\xBF\xBD",
+                "\n",
+                "\n"
+            ),
+            $data
+        );
         
         /* Any occurrences of any characters in the ranges U+0001 to
         U+0008, U+000B,  U+000E to U+001F,  U+007F  to U+009F,
@@ -1284,7 +1292,7 @@ class HTML5_Tokenizer {
         characters, consume those two characters, create a comment token whose
         data is the empty string, and switch to the comment state. */
         if($this->character($this->char, 2) === '--') {
-            $this->char++;
+            ++$this->char;
             $this->state = 'commentStart';
             $this->token = array(
                 'data' => '',
@@ -2001,8 +2009,7 @@ class HTML5_Tokenizer {
             return false;
         } elseif ($next == '#') {
             /* Consume the U+0023 NUMBER SIGN. */
-            $start = $this->char;
-            $this->char++;
+            $start = $this->char++;
             /* The behavior further depends on the character after
             the U+0023 NUMBER SIGN: */
             switch($this->character($this->char + 1)) {
@@ -2011,7 +2018,7 @@ class HTML5_Tokenizer {
                 case 'x':
                 case 'X':
                     /* Consume the X. */
-                    $this->char++;
+                    ++$this->char;
                     /* Follow the steps below, but using the range of
                     characters U+0030 DIGIT ZERO through to U+0039 DIGIT
                     NINE, U+0061 LATIN SMALL LETTER A through to U+0066
@@ -2053,7 +2060,7 @@ class HTML5_Tokenizer {
             /* Otherwise, if the next character is a U+003B SEMICOLON,
             consume that too. If it isn't, there is a parse error. */
             if ($this->character($this->char + 1) === ';') {
-                $this->char++;
+                ++$this->char;
             } else {
                 // parse error
             }
