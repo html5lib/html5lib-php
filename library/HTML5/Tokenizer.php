@@ -222,7 +222,6 @@ class HTML5_Tokenizer {
                 // consume a character, and assign it to $this->c
                 $this->c = (++$this->char < $this->EOF) ? $this->data[$this->char] : false;
             }    
-            // OOO get rid of this concatentation
             $this->{$this->state.'State'}();
             
         }
