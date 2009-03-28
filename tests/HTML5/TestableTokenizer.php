@@ -68,7 +68,9 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
                 }
                 $this->outputTokens[] = array('Character', $token['data']);
                 break;
-            // case for parse error
+            case self::PARSEERROR:
+                $this->outputTokens[] = 'ParseError';
+                break;
         }
     }
 }

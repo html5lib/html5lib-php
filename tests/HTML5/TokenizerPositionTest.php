@@ -8,8 +8,11 @@ class HTML5_PositionTestableTokenizer extends HTML5_TestableTokenizer
     public $outputCols  = array();
     protected function emitToken($token) {
         parent::emitToken($token);
-        $this->outputLines[] = $this->getCurrentLine();
-        $this->outputCols[]  = $this->getColumnOffset();
+        // XXX: The tests should really include the parse errors, but I'm lazy.
+        if ($token['type'] !== self::PARSEERROR) {
+            $this->outputLines[] = $this->getCurrentLine();
+            $this->outputCols[]  = $this->getColumnOffset();
+        }
     }
 }
 

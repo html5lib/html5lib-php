@@ -119,12 +119,13 @@ class HTML5_Tokenizer {
     // These are constants describing tokens
     // XXX should probably be moved somewhere else, probably the
     // HTML5 class.
-    const DOCTYPE  = 0;
-    const STARTTAG = 1;
-    const ENDTAG   = 2;
-    const COMMENT  = 3;
-    const CHARACTER = 4;
-    const EOF      = 5;
+    const DOCTYPE    = 0;
+    const STARTTAG   = 1;
+    const ENDTAG     = 2;
+    const COMMENT    = 3;
+    const CHARACTER  = 4;
+    const EOF        = 5;
+    const PARSEERROR = 6;
     
     // These are constants representing bunches of characters.
     const ALPHA       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -173,6 +174,12 @@ class HTML5_Tokenizer {
         /* All U+0000 NULL characters in the input must be replaced
         by U+FFFD REPLACEMENT CHARACTERs. Any occurrences of such
         characters is a parse error. */
+        for ($i = 0, $count = substr_count($data, "\0"); $i < $count; $i++) {
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'null-character'
+            ));
+        }
         /* U+000D CARRIAGE RETURN (CR) characters and U+000A LINE FEED
         (LF) characters are treated specially. Any CR characters
         that are followed by LF characters must be removed, and any
@@ -204,10 +211,22 @@ class HTML5_Tokenizer {
         U+DFFFF, U+EFFFE, U+EFFFF, U+FFFFE, U+FFFFF, U+10FFFE, and
         U+10FFFF are parse errors. (These are all control characters
         or permanently undefined Unicode characters.) */
-        // XXX not implemented!
-        // code for this exists later below, factor it out
-        // The most efficient way of implementing this is probably
-        // PCRE; strtr would work but have a high memory cost.
+        // Check PCRE is loaded and has Unicode support enabled.
+        if (extension_loaded('pcre') && @preg_match('/\p{L}/u', 'a')) {
+            $count = preg_match_all(
+                '/[\x{0001}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}\x{D800}-\x{DFFF}\x{FDD0}-\x{FDEF}\x{FFFE}\x{FFFF}\x{1FFFE}\x{1FFFF}\x{2FFFE}\x{2FFFF}\x{3FFFE}\x{3FFFF}\x{4FFFE}\x{4FFFF}\x{5FFFE}\x{5FFFF}\x{6FFFE}\x{6FFFF}\x{7FFFE}\x{7FFFF}\x{8FFFE}\x{8FFFF}\x{9FFFE}\x{9FFFF}\x{AFFFE}\x{AFFFF}\x{BFFFE}\x{BFFFF}\x{CFFFE}\x{CFFFF}\x{DFFFE}\x{DFFFF}\x{EFFFE}\x{EFFFF}\x{FFFFE}\x{FFFFF}\x{10FFFE}\x{10FFFF}]/u',
+                $data,
+                $matches
+            );
+            for ($i = 0; $i < $count; $i++) {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'invalid-codepoint'
+                ));
+            }
+        } else {
+            // XXX: Need non-PCRE impl, probably using substr_count
+        }
 
         $this->data = $data;
         $this->char = -1;
@@ -554,6 +573,10 @@ class HTML5_Tokenizer {
                     Parse error. Emit a U+003C LESS-THAN SIGN character token and a
                     U+003E GREATER-THAN SIGN character token. Switch to the data state. */
                     $this->emitToken(array(
+                        'type' => self::PARSEERROR,
+                        'data' => 'expected-tag-name-but-got-right-bracket'
+                    ));
+                    $this->emitToken(array(
                         'type' => self::CHARACTER,
                         'data' => '<>'
                     ));
@@ -563,12 +586,20 @@ class HTML5_Tokenizer {
                 } elseif($char === '?') {
                     /* U+003F QUESTION MARK (?)
                     Parse error. Switch to the bogus comment state. */
+                    $this->emitToken(array(
+                        'type' => self::PARSEERROR,
+                        'data' => 'expected-tag-name-but-got-question-mark'
+                    ));
                     $this->state = 'bogusComment';
 
                 } else {
                     /* Anything else
                     Parse error. Emit a U+003C LESS-THAN SIGN character token and
                     reconsume the current input character in the data state. */
+                    $this->emitToken(array(
+                        'type' => self::PARSEERROR,
+                        'data' => 'expected-tag-name'
+                    ));
                     $this->emitToken(array(
                         'type' => self::CHARACTER,
                         'data' => '<'
@@ -680,12 +711,20 @@ class HTML5_Tokenizer {
             } elseif($char === '>') {
                 /* U+003E GREATER-THAN SIGN (>)
                 Parse error. Switch to the data state. */
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'expected-closing-tag-but-got-right-bracket'
+                ));
                 $this->state = 'data';
 
             } elseif($char === false) {
                 /* EOF
                 Parse error. Emit a U+003C LESS-THAN SIGN character token and a U+002F
                 SOLIDUS character token. Reconsume the EOF character in the data state. */
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'expected-closing-tag-but-got-eof'
+                ));
                 $this->emitToken(array(
                     'type' => self::CHARACTER,
                     'data' => '</'
@@ -696,6 +735,10 @@ class HTML5_Tokenizer {
 
             } else {
                 /* Parse error. Switch to the bogus comment state. */
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'expected-closing-tag-but-got-char'
+                ));
                 $this->state = 'bogusComment';
             }
         }
@@ -741,6 +784,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-tag-name'
+            ));
             $this->emitToken($this->token);
 
             $this->EOF();
@@ -801,6 +848,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-attribute-name-but-got-eof'
+            ));
             $this->emitToken($this->token);
 
             $this->EOF();
@@ -811,7 +862,12 @@ class HTML5_Tokenizer {
                U+003D EQUALS SIGN (=)
             Parse error. Treat it as per the "anything else" entry
             below. */
-            // insert parse error here
+            if($char === '"' || $char === "'" || $char === '=') {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'invalid-character-in-attribute-name'
+                ));
+            }
 
             /* Anything else
             Start a new attribute in the current tag token. Set that attribute's
@@ -875,6 +931,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-attribute-name'
+            ));
             $this->emitToken($this->token);
 
             $this->EOF();
@@ -884,6 +944,12 @@ class HTML5_Tokenizer {
                U+0027 APOSTROPHE (')
             Parse error. Treat it as per the "anything else"
             entry below. */
+            if($char === '"' || $char === "'") {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'invalid-character-in-attribute-name'
+                ));
+            }
             
             /* Anything else
             Append the current input character to the current attribute's name.
@@ -956,6 +1022,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-end-of-tag-but-got-eof'
+            ));
             $this->emitToken($this->token);
 
             $this->EOF();
@@ -965,6 +1035,12 @@ class HTML5_Tokenizer {
                U+0027 APOSTROPHE (')
             Parse error. Treat it as per the "anything else"
             entry below. */
+            if($char === '"' || $char === "'") {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'invalid-character-after-attribute-name'
+                ));
+            }
             
             /* Anything else
             Start a new attribute in the current tag token. Set that attribute's
@@ -1012,6 +1088,10 @@ class HTML5_Tokenizer {
         } elseif($char === '>') {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Emit the current tag token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-attribute-value-but-got-right-bracket'
+            ));
             $this->emitToken($this->token);
             $this->state = 'data';
 
@@ -1019,12 +1099,22 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume
             the character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-attribute-value-but-got-eof'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
         } else {
             /* U+003D EQUALS SIGN (=)
             Parse error. Treat it as per the "anything else" entry below. */
+            if($char === '=') {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'equals-in-unquoted-attribute-value'
+                ));
+            }
 
             /* Anything else
             Append the current input character to the current attribute's value.
@@ -1056,6 +1146,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the character
             in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-attribute-value-double-quote'
+            ));
             $this->emitToken($this->token);
 
             $this->state = 'data';
@@ -1095,6 +1189,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the character
             in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-attribute-value-single-quote'
+            ));
             $this->emitToken($this->token);
 
             $this->EOF();
@@ -1142,6 +1240,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume
             the character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-attribute-value-no-quotes'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
@@ -1151,6 +1253,12 @@ class HTML5_Tokenizer {
                U+003D EQUALS SIGN (=)
             Parse error. Treat it as per the "anything else"
             entry below. */
+            if($char === '"' || $char === "'" || $char === '=') {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'unexpected-character-in-unquoted-attribute-value'
+                ));
+            }
             
             /* Anything else
             Append the current input character to the current attribute's value.
@@ -1217,6 +1325,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-EOF-after-attribute-value'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
@@ -1224,6 +1336,10 @@ class HTML5_Tokenizer {
             /* Anything else
             Parse error. Reconsume the character in the before attribute
             name state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-character-after-attribute-value'
+            ));
             $this->state = 'beforeAttributeName';
             $this->beforeAttributeNameState();
         }
@@ -1246,12 +1362,20 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the
             EOF character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-eof-after-self-closing'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
         } else {
             /* Anything else
             Parse error. Reconsume the character in the before attribute name state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-character-after-self-closing'
+            ));
             $this->state = 'beforeAttributeName';
             $this->beforeAttributeNameState();
         }
@@ -1320,6 +1444,10 @@ class HTML5_Tokenizer {
         The next character that is consumed, if any, is the first character
         that will be in the comment. */
         } else {
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-dashes-or-doctype'
+            ));
             $this->state = 'bogusComment';
         }
     }
@@ -1336,12 +1464,20 @@ class HTML5_Tokenizer {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Emit the comment token. Switch to the
             data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'incorrect-comment'
+            ));
             $this->emitToken($this->token);
             $this->state = 'data';
         } elseif ($char === false) {
             /* EOF
             Parse error. Emit the comment token. Reconsume the
             EOF character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-comment'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
         } else {
@@ -1364,11 +1500,19 @@ class HTML5_Tokenizer {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Emit the comment token. Switch to the
             data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'incorrect-comment'
+            ));
             $this->emitToken($this->token);
             $this->state = 'data';
         } elseif ($char === false) {
             /* Parse error. Emit the comment token. Reconsume the
             EOF character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-comment'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
         } else {
@@ -1390,6 +1534,10 @@ class HTML5_Tokenizer {
             /* EOF 
             Parse error. Emit the comment token. Reconsume the EOF character
             in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-comment'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
@@ -1419,6 +1567,10 @@ class HTML5_Tokenizer {
             /* EOF
             Parse error. Emit the comment token. Reconsume the EOF character
             in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-comment-end-dash'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
@@ -1446,12 +1598,20 @@ class HTML5_Tokenizer {
             Parse error. Append a U+002D HYPHEN-MINUS (-) character
             to the comment token's data. Stay in the comment end
             state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-dash-after-double-dash-in-comment'
+            ));
             $this->token['data'] .= '-';
 
         } elseif($char === false) {
             /* EOF
             Parse error. Emit the comment token. Reconsume the
             EOF character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-comment-double-dash'
+            ));
             $this->emitToken($this->token);
             $this->EOF();
 
@@ -1460,6 +1620,10 @@ class HTML5_Tokenizer {
             Parse error. Append two U+002D HYPHEN-MINUS (-)
             characters and the input character to the comment token's
             data. Switch to the comment state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-char-in-comment'
+            ));
             $this->token['data'] .= '--'.$char;
             $this->state = 'comment';
         }
@@ -1481,6 +1645,10 @@ class HTML5_Tokenizer {
             /* Anything else
             Parse error. Reconsume the current character in the
             before DOCTYPE name state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'need-space-after-doctype'
+            ));
             $this->state = 'beforeDoctypeName';
             $this->beforeDoctypeNameState();
         }
@@ -1502,6 +1670,10 @@ class HTML5_Tokenizer {
             Parse error. Create a new DOCTYPE token. Set its
             force-quirks flag to on. Emit the token. Switch to the
             data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-doctype-name-but-got-right-bracket'
+            ));
             $this->emitToken(array(
                 'name' => '',
                 'type' => self::DOCTYPE,
@@ -1530,6 +1702,10 @@ class HTML5_Tokenizer {
             Parse error. Create a new DOCTYPE token. Set its
             force-quirks flag to on. Emit the token. Reconsume the
             EOF character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'expected-doctype-name-but-got-eof'
+            ));
             $this->emitToken(array(
                 'name' => '',
                 'type' => self::DOCTYPE,
@@ -1583,6 +1759,10 @@ class HTML5_Tokenizer {
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype-name'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1624,6 +1804,10 @@ class HTML5_Tokenizer {
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1654,6 +1838,10 @@ class HTML5_Tokenizer {
                 /* Otherwise, this is the parse error. Set the DOCTYPE
                 token's force-quirks flag to on. Switch to the bogus
                 DOCTYPE state. */
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'expected-space-or-right-bracket-in-doctype'
+                ));
                 $this->token['force-quirks'] = true;
                 $this->token['error'] = true;
                 $this->state = 'bogusDoctype';
@@ -1688,6 +1876,10 @@ class HTML5_Tokenizer {
         } elseif ($char === '>') {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-end-of-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->state = 'data';
@@ -1695,12 +1887,20 @@ class HTML5_Tokenizer {
             /* Parse error. Set the DOCTYPE token's force-quirks
             flag to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
         } else {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Switch to the bogus DOCTYPE state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-char-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->state = 'bogusDoctype';
         }
@@ -1718,6 +1918,10 @@ class HTML5_Tokenizer {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-end-of-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->state = 'data';
@@ -1726,6 +1930,10 @@ class HTML5_Tokenizer {
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1750,6 +1958,10 @@ class HTML5_Tokenizer {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-end-of-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->state = 'data';
@@ -1758,6 +1970,10 @@ class HTML5_Tokenizer {
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1803,6 +2019,10 @@ class HTML5_Tokenizer {
             /* Parse error. Set the DOCTYPE token's force-quirks
             flag to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1810,6 +2030,10 @@ class HTML5_Tokenizer {
             /* Anything else
             Parse error. Set the DOCTYPE token's force-quirks flag 
             to on. Switch to the bogus DOCTYPE state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-char-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->state = 'bogusDoctype';
         }
@@ -1842,6 +2066,10 @@ class HTML5_Tokenizer {
         } elseif ($char === '>') {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-char-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->state = 'data';
@@ -1849,12 +2077,20 @@ class HTML5_Tokenizer {
             /* Parse error. Set the DOCTYPE token's force-quirks
             flag to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
         } else {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Switch to the bogus DOCTYPE state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-char-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->state = 'bogusDoctype';
         }
@@ -1872,6 +2108,10 @@ class HTML5_Tokenizer {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-end-of-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->state = 'data';
@@ -1880,6 +2120,10 @@ class HTML5_Tokenizer {
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1904,6 +2148,10 @@ class HTML5_Tokenizer {
             /* U+003E GREATER-THAN SIGN (>)
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Switch to the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-end-of-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->state = 'data';
@@ -1912,6 +2160,10 @@ class HTML5_Tokenizer {
             Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1943,6 +2195,10 @@ class HTML5_Tokenizer {
             /* Parse error. Set the DOCTYPE token's force-quirks
             flag to on. Emit that DOCTYPE token. Reconsume the EOF
             character in the data state. */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'eof-in-doctype'
+            ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
             $this->EOF();
@@ -1951,6 +2207,10 @@ class HTML5_Tokenizer {
             Parse error. Switch to the bogus DOCTYPE state.
             (This does not set the DOCTYPE token's force-quirks
             flag to on.) */
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'unexpected-char-in-doctype'
+            ));
             $this->state = 'bogusDoctype';
         }
     }
@@ -2053,6 +2313,10 @@ class HTML5_Tokenizer {
                 any characters (and unconsume the U+0023 NUMBER SIGN
                 character and, if appropriate, the X character). This
                 is a parse error; nothing is returned. */
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'expected-numeric-entity'
+                ));
                 $this->char = $start;
                 return false;
             }
@@ -2062,7 +2326,10 @@ class HTML5_Tokenizer {
             if ($this->character($this->char + 1) === ';') {
                 ++$this->char;
             } else {
-                // parse error
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'numeric-entity-without-semicolon'
+                ));
             }
             
             /* If one or more characters match the range, then take
@@ -2077,7 +2344,10 @@ class HTML5_Tokenizer {
             second column of that row. */
             $new_codepoint = HTML5_Data::getRealCodepoint($codepoint);
             if ($new_codepoint) {
-                // parse error
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'illegal-windows-1252-entity'
+                ));
                 $codepoint = $new_codepoint;
             }
 
@@ -2118,7 +2388,10 @@ class HTML5_Tokenizer {
                 $codepoint == 0x10FFFE || $codepoint == 0x10FFFF ||
                 $codepoint > 0x10FFFF
             ) {
-                // parse error
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'illegal-codepoint-for-numeric-entity'
+                ));
                 $codepoint = 0xFFFD;
             }
 
@@ -2154,14 +2427,23 @@ class HTML5_Tokenizer {
 
             /* If no match can be made, then this is a parse error.
             No characters are consumed, and nothing is returned. */
-            if (!$codepoint) return false;
+            if (!$codepoint) {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'expected-named-entity'
+                ));
+                return false;
+            }
             
             /* If the last character matched is not a U+003B SEMICOLON
             (;), there is a parse error. */
             $this->char += $c;
             $semicolon = true;
             if (substr($id, -1) !== ';') {
-                // parse error
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'named-entity-without-semicolon'
+                ));
                 $semicolon = false;
             }
             

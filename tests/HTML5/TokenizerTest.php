@@ -15,8 +15,6 @@ abstract class HTML5_TokenizerHarness extends HTML5_JSONHarness
             $expect = array();
             $last = null;
             foreach ($test->output as $tok) {
-                // XXX remove parse errors; eventually we'll want to test for these
-                if ($tok === 'ParseError') continue;
                 // Normalize character tokens from the test
                 if ($tok[0] === 'Character' && $last[0] === 'Character') {
                     $last[1] .= $tok[1];
