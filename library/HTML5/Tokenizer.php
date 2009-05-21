@@ -1322,7 +1322,7 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        } elseif ($this->char === self::EOF) {
+        } elseif ($this->char === $this->EOF) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
@@ -1359,7 +1359,7 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        } elseif ($this->char === self::EOF) {
+        } elseif ($this->char === $this->EOF) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the
             EOF character in the data state. */
