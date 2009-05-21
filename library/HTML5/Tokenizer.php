@@ -1356,6 +1356,14 @@ class HTML5_Tokenizer {
             Emit the current tag token. Switch to the data state. */
             // not sure if this is the name we want
             $this->token['self-closing'] = true;
+            /* When an end tag token is emitted with its self-closing flag set,
+            that is a parse error. */
+            if ($this->token['type'] === self::ENDTAG) {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'self-closing-end-tag'
+                ));
+            }
             $this->emitToken($this->token);
             $this->state = 'data';
 
