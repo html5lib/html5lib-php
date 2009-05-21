@@ -211,11 +211,22 @@ class HTML5_Tokenizer {
         U+DFFFF, U+EFFFE, U+EFFFF, U+FFFFE, U+FFFFF, U+10FFFE, and
         U+10FFFF are parse errors. (These are all control characters
         or permanently undefined Unicode characters.) */
-        // Check PCRE is loaded and has Unicode support enabled.
-        if (extension_loaded('pcre') && @preg_match('/\p{L}/u', 'a')) {
-            // XXX: This doesn't work with surrogates. See http://bugs.php.net/bug.php?id=47526
+        // Check PCRE is loaded.
+        if (extension_loaded('pcre')) {
             $count = preg_match_all(
-                '/[\x{0001}-\x{0008}\x{000B}\x{000E}-\x{001F}\x{007F}-\x{009F}\x{D800}-\x{DFFF}\x{FDD0}-\x{FDEF}\x{FFFE}\x{FFFF}\x{1FFFE}\x{1FFFF}\x{2FFFE}\x{2FFFF}\x{3FFFE}\x{3FFFF}\x{4FFFE}\x{4FFFF}\x{5FFFE}\x{5FFFF}\x{6FFFE}\x{6FFFF}\x{7FFFE}\x{7FFFF}\x{8FFFE}\x{8FFFF}\x{9FFFE}\x{9FFFF}\x{AFFFE}\x{AFFFF}\x{BFFFE}\x{BFFFF}\x{CFFFE}\x{CFFFF}\x{DFFFE}\x{DFFFF}\x{EFFFE}\x{EFFFF}\x{FFFFE}\x{FFFFF}\x{10FFFE}\x{10FFFF}]/u',
+                '/(?:
+                    [\x01-\x08\x0B\x0E-\x1F\x7F] # U+0001 to U+0008, U+000B,  U+000E to U+001F and U+007F
+                |
+                    \xC2[\x80-\x9F] # U+0080 to U+009F
+                |
+                    \xED(?:\xA0[\x80-\xFF]|[\xA1-\xBE][\x00-\xFF]|\xBF[\x00-\xBF]) # U+D800 to U+DFFFF
+                |
+                    \xEF\xB7[\x90-\xAF] # U+FDD0 to U+FDEF
+                |
+                    \xEF\xBF[\xBE\xBF] # U+FFFE and U+FFFF
+                |
+                    [\xF0-\xF4][\x8F-\xBF]\xBF[\xBE\xBF] # U+nFFFE and U+nFFFF (1 <= n <= 10_{16})
+                )/x',
                 $data,
                 $matches
             );
