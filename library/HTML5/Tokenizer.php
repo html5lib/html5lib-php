@@ -448,7 +448,10 @@ class HTML5_Tokenizer {
         } elseif($char === false) {
             /* EOF
             Emit an end-of-file token. */
-            $this->EOF();
+            $this->state = null;
+            $this->tree->emitToken(array(
+                'type' => self::EOF
+            ));
 
         } elseif($this->content_model === self::PLAINTEXT) {
             // XXX it appears there is no such thing as a PLAINTEXT
@@ -461,7 +464,7 @@ class HTML5_Tokenizer {
                 'data' => substr($this->data, $this->char)
             ));
 
-            $this->EOF();
+            $this->char = $this->EOF - 1;
 
         } else {
             /* Anything else
@@ -802,7 +805,8 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -866,7 +870,8 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* U+0022 QUOTATION MARK (")
@@ -949,7 +954,8 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* U+0022 QUOTATION MARK (")
@@ -1040,7 +1046,8 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* U+0022 QUOTATION MARK (")
@@ -1116,7 +1123,8 @@ class HTML5_Tokenizer {
                 'data' => 'expected-attribute-value-but-got-eof'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* U+003D EQUALS SIGN (=)
@@ -1207,7 +1215,8 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1257,7 +1266,8 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-attribute-value-no-quotes'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* U+0022 QUOTATION MARK (")
@@ -1342,7 +1352,8 @@ class HTML5_Tokenizer {
                 'data' => 'unexpected-EOF-after-attribute-value'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1387,7 +1398,8 @@ class HTML5_Tokenizer {
                 'data' => 'unexpected-eof-after-self-closing'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1426,7 +1438,8 @@ class HTML5_Tokenizer {
 
         /* If the end of the file was reached, reconsume the EOF character. */
         if($this->char === $this->EOF) {
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         }
     }
 
@@ -1499,7 +1512,8 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Append the input character to the comment token's
@@ -1534,7 +1548,8 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             $this->token['data'] .= '-' . $char;
             $this->state = 'comment';
@@ -1559,7 +1574,8 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1592,7 +1608,8 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment-end-dash'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1633,7 +1650,8 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment-double-dash'
             ));
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1733,7 +1751,8 @@ class HTML5_Tokenizer {
                 'error' => true
             ));
 
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1785,7 +1804,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -1830,7 +1850,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else */
@@ -1913,7 +1934,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Switch to the bogus DOCTYPE state. */
@@ -1956,7 +1978,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Append the current input character to the current
@@ -1996,7 +2019,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Append the current input character to the current
@@ -2045,7 +2069,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Parse error. Set the DOCTYPE token's force-quirks flag 
@@ -2103,7 +2128,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Switch to the bogus DOCTYPE state. */
@@ -2146,7 +2172,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Append the current input character to the current
@@ -2186,7 +2213,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Append the current input character to the current
@@ -2221,7 +2249,8 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
         } else {
             /* Anything else
             Parse error. Switch to the bogus DOCTYPE state.
@@ -2250,7 +2279,8 @@ class HTML5_Tokenizer {
             Emit the DOCTYPE token. Reconsume the EOF character in
             the data state. */
             $this->emitToken($this->token);
-            $this->EOF();
+            $this->char--;
+            $this->state = 'data';
 
         } else {
             /* Anything else
@@ -2506,16 +2536,6 @@ class HTML5_Tokenizer {
         } elseif($token['type'] === self::ENDTAG) {
             $this->content_model = self::PCDATA;
         }
-    }
-
-    /**
-     * Emits the end of file token, and signals the end of tokenization.
-     */
-    private function EOF() {
-        $this->state = null;
-        $this->tree->emitToken(array(
-            'type' => self::EOF
-        ));
     }
 }
 
