@@ -32,7 +32,6 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
                 $this->emitToken(array_shift($this->stream->errors), false);
             }
         }
-                //var_dump($token);
         
         // tree handling code omitted
         switch ($token['type']) {
