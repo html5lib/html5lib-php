@@ -6,12 +6,27 @@ class HTML5_PositionTestableTokenizer extends HTML5_TestableTokenizer
 {
     public $outputLines = array();
     public $outputCols  = array();
+    private $characterTokens = array();
     protected function emitToken($token) {
         parent::emitToken($token);
         // XXX: The tests should really include the parse errors, but I'm lazy.
-        if ($token['type'] !== self::PARSEERROR) {
-            $this->outputLines[] = $this->getCurrentLine();
-            $this->outputCols[]  = $this->getColumnOffset();
+        switch ($token['type']) {
+            case self::PARSEERROR:
+                return;
+            
+            case self::CHARACTER:
+                if ($this->characterTokens) {
+                    array_pop($this->outputLines);
+                    array_pop($this->outputCols);
+                }
+                $this->characterTokens[] = $token;
+            
+            default:
+                $this->outputLines[] = $this->stream()->getCurrentLine();
+                $this->outputCols[]  = $this->stream()->getColumnOffset();
+        }
+        if ($token['type'] !== self::CHARACTER) {
+            $this->characterTokens = array();
         }
     }
 }
@@ -101,27 +116,24 @@ class HTML5_TokenizerTestOfPosition extends UnitTestCase
     function testEmptyEntity() {
         $this->assertPositions(
             '&#;<b>',
-            // note that the ampersand and the #; are not in the
-            // same token. This is slightly implementation dependent;
-            // it might be a good idea to buffer text tokens
-            array(1,1,1),
-            array(1,3,6)
+            array(1,1),
+            array(3,6)
         );
     }
     
     function testNamedEntity() {
         $this->assertPositions(
             '&quot;foo<b>',
-            array(1,1,1),
-            array(6,9,12)
+            array(1,1),
+            array(9,12)
         );
     }
     
     function testBadNamedEntity() {
         $this->assertPositions(
             '&zzz;b',
-            array(1,1),
-            array(1,6) // ampersand!
+            array(1),
+            array(6)
         );
     }
     
