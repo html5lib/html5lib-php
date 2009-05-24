@@ -2,5 +2,5 @@
 
 class HTML5_Parser
 {
-    
+
 }

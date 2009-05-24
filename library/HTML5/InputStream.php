@@ -4,24 +4,24 @@
 
 Copyright 2009 Geoffrey Sneddon <http://gsnedders.com/>
 
-Permission is hereby granted, free of charge, to any person obtaining a 
-copy of this software and associated documentation files (the 
-"Software"), to deal in the Software without restriction, including 
-without limitation the rights to use, copy, modify, merge, publish, 
-distribute, sublicense, and/or sell copies of the Software, and to 
-permit persons to whom the Software is furnished to do so, subject to 
-the following conditions: 
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-The above copyright notice and this permission notice shall be included 
-in all copies or substantial portions of the Software. 
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
@@ -34,17 +34,17 @@ class HTML5_InputStream {
      * The string data we're parsing.
      */
     private $data;
-    
+
     /**
      * The current integer byte position we are in $data
      */
     private $char;
-    
+
     /**
      * Length of $data; when $char === $data, we are at the end-of-file.
      */
     private $EOF;
-    
+
     /**
      * Parse errors.
      */
@@ -54,7 +54,7 @@ class HTML5_InputStream {
      * @param $data Data to parse
      */
     public function __construct($data) {
-        
+
         /* Given an encoding, the bytes in the input stream must be
         converted to Unicode characters for the tokeniser, as
         described by the rules for that encoding, except that the
@@ -64,7 +64,7 @@ class HTML5_InputStream {
         Bytes or sequences of bytes in the original byte stream that
         could not be converted to Unicode characters must be converted
         to U+FFFD REPLACEMENT CHARACTER code points. */
-        
+
         // XXX currently assuming input data is UTF-8; once we
         // build encoding detection this will no longer be the case
         //
@@ -84,7 +84,7 @@ class HTML5_InputStream {
         if (substr($data, 0, 3) === "\xEF\xBB\xBF") {
             $data = substr($data, 3);
         }
-        
+
         /* All U+0000 NULL characters in the input must be replaced
         by U+FFFD REPLACEMENT CHARACTERs. Any occurrences of such
         characters is a parse error. */
@@ -114,7 +114,7 @@ class HTML5_InputStream {
             ),
             $data
         );
-        
+
         /* Any occurrences of any characters in the ranges U+0001 to
         U+0008, U+000B,  U+000E to U+001F,  U+007F  to U+009F,
         U+D800 to U+DFFF , U+FDD0 to U+FDEF, and
@@ -184,7 +184,7 @@ class HTML5_InputStream {
         // position of) added to it because strrpos's behaviour includes the
         // final offset byte.
         $lastLine = strrpos($this->data, "\n", $this->char - 1 - strlen($this->data));
-        
+
         // However, for here we want the length up until the next byte to be
         // processed, so add one to the current byte ($this->char).
         if($lastLine !== false) {
@@ -192,7 +192,7 @@ class HTML5_InputStream {
         } else {
             $findLengthOf = substr($this->data, 0, $this->char);
         }
-        
+
         // Get the length for the string we need.
         if(extension_loaded('iconv')) {
             return iconv_strlen($findLengthOf, 'utf-8');
@@ -208,7 +208,7 @@ class HTML5_InputStream {
                    array_sum(array_slice($count, 0xC2, 0x33));
         }
     }
-    
+
     /**
      * Retrieve the currently consume character.
      * @note This performs bounds checking
@@ -276,7 +276,7 @@ class HTML5_InputStream {
             return false;
         }
     }
-    
+
     /**
      * Unconsume one character.
      */

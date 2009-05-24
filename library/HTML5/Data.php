@@ -4,15 +4,15 @@
 
 class HTML5_Data
 {
-    
+
     // at some point this should be moved to a .ser file. Another
     // possible optimization is to give UTF-8 bytes, not Unicode
     // codepoints
     protected static $realCodepointTable = array(
-        0x0D => 0x000A, // LINE FEED (LF) 
+        0x0D => 0x000A, // LINE FEED (LF)
         0x80 => 0x20AC, // EURO SIGN ('€')
-        0x81 => 0xFFFD, // REPLACEMENT CHARACTER 
-        0x82 => 0x201A, // SINGLE LOW-9 QUOTATION MARK ('‚') 
+        0x81 => 0xFFFD, // REPLACEMENT CHARACTER
+        0x82 => 0x201A, // SINGLE LOW-9 QUOTATION MARK ('‚')
         0x83 => 0x0192, // LATIN SMALL LETTER F WITH HOOK ('ƒ')
         0x84 => 0x201E, // DOUBLE LOW-9 QUOTATION MARK ('„')
         0x85 => 0x2026, // HORIZONTAL ELLIPSIS ('…')
@@ -41,13 +41,13 @@ class HTML5_Data
         0x9C => 0x0153, // LATIN SMALL LIGATURE OE ('œ')
         0x9D => 0xFFFD, // REPLACEMENT CHARACTER
         0x9E => 0x017E, // LATIN SMALL LETTER Z WITH CARON ('ž')
-        0x9F => 0x0178, // LATIN CAPITAL LETTER Y WITH DIAERESIS ('Ÿ') 
+        0x9F => 0x0178, // LATIN CAPITAL LETTER Y WITH DIAERESIS ('Ÿ')
     );
-    
+
     protected static $namedCharacterReferences;
-    
+
     protected static $namedCharacterReferenceMaxLength;
-    
+
     /**
      * Returns the "real" Unicode codepoint of a malformed character
      * reference.
@@ -56,7 +56,7 @@ class HTML5_Data
         if (!isset(self::$realCodepointTable[$ref])) return false;
         else return self::$realCodepointTable[$ref];
     }
-    
+
     public static function getNamedCharacterReferences() {
         if (!self::$namedCharacterReferences) {
             self::$namedCharacterReferences = unserialize(
@@ -64,7 +64,7 @@ class HTML5_Data
         }
         return self::$namedCharacterReferences;
     }
-    
+
     public static function getNamedCharacterReferenceMaxLength() {
         if (!self::$namedCharacterReferenceMaxLength) {
             $namedCharacterReferences = self::getNamedCharacterReferences();
@@ -73,8 +73,8 @@ class HTML5_Data
         }
         return self::$namedCharacterReferenceMaxLength;
     }
-        
-    
+
+
     /**
      * Converts a Unicode codepoint to sequence of UTF-8 bytes.
      * @note Shamelessly stolen from HTML Purifier, which is also
@@ -116,5 +116,5 @@ class HTML5_Data
 
         return $ret;
     }
-    
+
 }

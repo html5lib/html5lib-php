@@ -6,24 +6,24 @@ Copyright 2007 Jeroen van der Meer <http://jero.net/>
 Copyright 2008 Edward Z. Yang <http://htmlpurifier.org/>
 Copyright 2009 Geoffrey Sneddon <http://gsnedders.com/>
 
-Permission is hereby granted, free of charge, to any person obtaining a 
-copy of this software and associated documentation files (the 
-"Software"), to deal in the Software without restriction, including 
-without limitation the rights to use, copy, modify, merge, publish, 
-distribute, sublicense, and/or sell copies of the Software, and to 
-permit persons to whom the Software is furnished to do so, subject to 
-the following conditions: 
+Permission is hereby granted, free of charge, to any person obtaining a
+copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
 
-The above copyright notice and this permission notice shall be included 
-in all copies or substantial portions of the Software. 
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS 
-OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF 
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
-IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY 
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, 
-TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
-SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
@@ -58,34 +58,34 @@ class HTML5_Tokenizer {
      * Points to an InputStream object.
      */
     protected $stream;
-    
+
     /**
      * String state to execute.
      */
     private $state;
-    
+
     /**
      * Tree builder that the tokenizer emits token to.
      */
     private $tree;
-    
+
     /**
      * Escape flag as specified by the HTML5 specification: "used to
      * control the behavior of the tokeniser. It is either true or
      * false, and initially must be set to the false state."
      */
     private $escape = false;
-    
+
     /**
      * The value of the auto-consumed byte. See AUTO-CONSUMPTION.
      */
     private $c;
-        
+
     /**
      * Current content model we are parsing as.
      */
     protected $content_model;
-    
+
     /**
      * Current token that is being built, but not yet emitted. Also
      * is the last token emitted, if applicable.
@@ -108,7 +108,7 @@ class HTML5_Tokenizer {
     const CHARACTER  = 4;
     const EOF        = 5;
     const PARSEERROR = 6;
-    
+
     // These are constants representing bunches of characters.
     const ALPHA       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
     const UPPER_ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -158,7 +158,7 @@ class HTML5_Tokenizer {
 
         // Possible optimization: mark text tokens that contain entirely
         // whitespace as whitespace tokens.
-        
+
         static $lastFourChars = '';
 
         /* Consume the next input character */
@@ -181,7 +181,7 @@ class HTML5_Tokenizer {
                  ) &&
                  !$this->escape
             );
-         
+
         if($char === '&' && $amp_cond) {
             /* U+0026 AMPERSAND (&)
             When the content model flag is set to one of the PCDATA or RCDATA
@@ -258,18 +258,18 @@ class HTML5_Tokenizer {
             // XXX The complexity of the extra code we would need
             // to insert for this optimization makes justifying this
             // for less used codepaths difficult.
-            
+
             $mask = '->';
             if ($amp_cond) $mask .= '&';
             if ($lt_cond)  $mask .= '<';
-            
+
             $chars = $this->stream->charsUntil($mask);
 
             $this->emitToken(array(
                 'type' => self::CHARACTER,
                 'data' => $char . $chars
             ));
-            
+
             $lastFourChars = substr($lastFourChars . $chars, -4);
 
             $this->state = 'data';
@@ -279,7 +279,7 @@ class HTML5_Tokenizer {
     private function characterReferenceDataState() {
         /* (This cannot happen if the content model flag
         is set to the CDATA state.) */
-        
+
         /* Attempt to consume a character reference, with no
         additional allowed character. */
         // XXX no additional allowed character?
@@ -300,7 +300,7 @@ class HTML5_Tokenizer {
 
     private function tagOpenState() {
         $char = $this->stream->char();
-        
+
         switch($this->content_model) {
             case self::RCDATA:
             case self::CDATA:
@@ -310,7 +310,7 @@ class HTML5_Tokenizer {
                 SIGN character token and reconsume the current input
                 character in the data state. */
                 // We consumed above.
-                
+
                 if($char === '/') {
                     $this->state = 'closeTagOpen';
 
@@ -319,7 +319,7 @@ class HTML5_Tokenizer {
                         'type' => self::CHARACTER,
                         'data' => '<'
                     ));
-                    
+
                     $this->stream->unget();
 
                     $this->state = 'data';
@@ -438,39 +438,39 @@ class HTML5_Tokenizer {
                 token emitted (compared in an ASCII case-insensitive manner),
                 or if they do but they are not immediately followed by one of
                 the following characters:
-                
+
                     * U+0009 CHARACTER TABULATION
                     * U+000A LINE FEED (LF)
                     * U+000C FORM FEED (FF)
                     * U+0020 SPACE
                     * U+003E GREATER-THAN SIGN (>)
                     * U+002F SOLIDUS (/)
-                    * EOF 
-                
+                    * EOF
+
                 ...then emit a U+003C LESS-THAN SIGN character token, a
                 U+002F SOLIDUS character token, and switch to the data
                 state to process the next input character. */
                 // XXX: Probably ought to replace in_array with $following === x ||...
-                
+
                 // We also need to emit $name now we've consumed that, as we
                 // know it'll just be emitted as a character token.
                 $this->emitToken(array(
                     'type' => self::CHARACTER,
                     'data' => '</' . $name
                 ));
-                
+
                 $this->state = 'data';
             } else {
                 // This matches what would happen if we actually did the
                 // otherwise below (but we can't because we've consumed too
                 // much).
-                
+
                 // Start the end tag token with the name we already have.
                 $this->token = array(
                     'name'  => $name,
                     'type'  => self::ENDTAG
                 );
-                
+
                 // Change to tag name state.
                 $this->state = 'tagName';
             }
@@ -574,7 +574,7 @@ class HTML5_Tokenizer {
             character (add 0x0020 to the character's code point) to
             the current tag token's tag name. Stay in the tag name state. */
             $chars = $this->stream->charsWhile(self::UPPER_ALPHA);
-            
+
             $this->token['name'] .= strtolower($char . $chars);
             $this->state = 'tagName';
 
@@ -596,7 +596,7 @@ class HTML5_Tokenizer {
             Append the current input character to the current tag token's tag name.
             Stay in the tag name state. */
             $chars = $this->stream->charsUntil("\t\n\x0C />" . self::UPPER_ALPHA);
-            
+
             $this->token['name'] .= $char . $chars;
             $this->state = 'tagName';
         }
@@ -715,7 +715,7 @@ class HTML5_Tokenizer {
             the current attribute's name. Stay in the attribute name
             state. */
             $chars = $this->stream->charsWhile(self::UPPER_ALPHA);
-            
+
             $last = count($this->token['attr']) - 1;
             $this->token['attr'][$last]['name'] .= strtolower($char . $chars);
 
@@ -745,18 +745,18 @@ class HTML5_Tokenizer {
                     'data' => 'invalid-character-in-attribute-name'
                 ));
             }
-            
+
             /* Anything else
             Append the current input character to the current attribute's name.
             Stay in the attribute name state. */
             $chars = $this->stream->charsUntil("\t\n\x0C /=>\"'" . self::UPPER_ALPHA);
-            
+
             $last = count($this->token['attr']) - 1;
             $this->token['attr'][$last]['name'] .= $char . $chars;
 
             $this->state = 'attributeName';
         }
-        
+
         /* When the user agent leaves the attribute name state
         (and before emitting the tag token, if appropriate), the
         complete attribute's name must be compared to the other
@@ -834,7 +834,7 @@ class HTML5_Tokenizer {
                     'data' => 'invalid-character-after-attribute-name'
                 ));
             }
-            
+
             /* Anything else
             Start a new attribute in the current tag token. Set that attribute's
             name to the current input character, and its value to the empty string.
@@ -932,7 +932,7 @@ class HTML5_Tokenizer {
         } elseif($char === '&') {
             /* U+0026 AMPERSAND (&)
             Switch to the character reference in attribute value
-            state, with the additional allowed character 
+            state, with the additional allowed character
             being U+0022 QUOTATION MARK ("). */
             $this->characterReferenceInAttributeValue('"');
 
@@ -954,7 +954,7 @@ class HTML5_Tokenizer {
             Append the current input character to the current attribute's value.
             Stay in the attribute value (double-quoted) state. */
             $chars = $this->stream->charsUntil('"&');
-            
+
             $last = count($this->token['attr']) - 1;
             $this->token['attr'][$last]['value'] .= $char . $chars;
 
@@ -994,7 +994,7 @@ class HTML5_Tokenizer {
             Append the current input character to the current attribute's value.
             Stay in the attribute value (single-quoted) state. */
             $chars = $this->stream->charsUntil("'&");
-            
+
             $last = count($this->token['attr']) - 1;
             $this->token['attr'][$last]['value'] .= $char . $chars;
 
@@ -1049,12 +1049,12 @@ class HTML5_Tokenizer {
                     'data' => 'unexpected-character-in-unquoted-attribute-value'
                 ));
             }
-            
+
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (unquoted) state. */
             $chars = $this->stream->charsUntil("\t\n\x0c &>\"'=");
-            
+
             $last = count($this->token['attr']) - 1;
             $this->token['attr'][$last]['value'] .= $char . $chars;
 
@@ -1190,14 +1190,14 @@ class HTML5_Tokenizer {
         the file (EOF), the token is empty.) */
         $this->token['data'] .= (string) $this->stream->charsUntil('>');
         $this->stream->char();
-        
+
         $this->emitToken($this->token);
 
         /* Switch to the data state. */
         $this->state = 'data';
     }
 
-    private function markupDeclarationOpenState() {        
+    private function markupDeclarationOpenState() {
         // Consume for below
         $hyphens = $this->stream->charsWhile('-', 2);
         if ($hyphens === '-') {
@@ -1206,7 +1206,7 @@ class HTML5_Tokenizer {
         if ($hyphens !== '--') {
             $alpha = $this->stream->charsWhile(self::ALPHA, 7);
         }
-        
+
         /* If the next two characters are both U+002D HYPHEN-MINUS (-)
         characters, consume those two characters, create a comment token whose
         data is the empty string, and switch to the comment state. */
@@ -1232,7 +1232,7 @@ class HTML5_Tokenizer {
         and after), then consume those characters and switch to the
         CDATA section state (which is unrelated to the content model
         flag's CDATA state). */
-        
+
         /* Otherwise, is is a parse error. Switch to the bogus comment state.
         The next character that is consumed, if any, is the first character
         that will be in the comment. */
@@ -1252,7 +1252,7 @@ class HTML5_Tokenizer {
     private function commentStartState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if ($char === '-') {
             /* U+002D HYPHEN-MINUS (-)
             Switch to the comment start dash state. */
@@ -1286,7 +1286,7 @@ class HTML5_Tokenizer {
             $this->state = 'comment';
         }
     }
-    
+
     private function commentStartDashState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
@@ -1330,7 +1330,7 @@ class HTML5_Tokenizer {
             $this->state = 'commentEndDash';
 
         } elseif($char === false) {
-            /* EOF 
+            /* EOF
             Parse error. Emit the comment token. Reconsume the EOF character
             in the data state. */
             $this->emitToken(array(
@@ -1346,7 +1346,7 @@ class HTML5_Tokenizer {
             Append the input character to the comment token's data. Stay in
             the comment state. */
             $chars = $this->stream->charsUntil('-');
-            
+
             $this->token['data'] .= $char . $chars;
         }
     }
@@ -1646,11 +1646,11 @@ class HTML5_Tokenizer {
             }
         }
     }
-    
+
     private function beforeDoctypePublicIdentifierState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
@@ -1704,11 +1704,11 @@ class HTML5_Tokenizer {
             $this->state = 'bogusDoctype';
         }
     }
-    
+
     private function doctypePublicIdentifierDoubleQuotedState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if ($char === '"') {
             /* U+0022 QUOTATION MARK (")
             Switch to the after DOCTYPE public identifier state. */
@@ -1745,11 +1745,11 @@ class HTML5_Tokenizer {
             $this->token['public'] .= $char;
         }
     }
-    
+
     private function doctypePublicIdentifierSingleQuotedState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if ($char === "'") {
             /* U+0027 APOSTROPHE (')
             Switch to the after DOCTYPE public identifier state. */
@@ -1786,11 +1786,11 @@ class HTML5_Tokenizer {
             $this->token['public'] .= $char;
         }
     }
-    
+
     private function afterDoctypePublicIdentifierState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
@@ -1830,7 +1830,7 @@ class HTML5_Tokenizer {
             $this->state = 'data';
         } else {
             /* Anything else
-            Parse error. Set the DOCTYPE token's force-quirks flag 
+            Parse error. Set the DOCTYPE token's force-quirks flag
             to on. Switch to the bogus DOCTYPE state. */
             $this->emitToken(array(
                 'type' => self::PARSEERROR,
@@ -1840,11 +1840,11 @@ class HTML5_Tokenizer {
             $this->state = 'bogusDoctype';
         }
     }
-    
+
     private function beforeDoctypeSystemIdentifierState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
@@ -1898,11 +1898,11 @@ class HTML5_Tokenizer {
             $this->state = 'bogusDoctype';
         }
     }
-    
+
     private function doctypeSystemIdentifierDoubleQuotedState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if ($char === '"') {
             /* U+0022 QUOTATION MARK (")
             Switch to the after DOCTYPE system identifier state. */
@@ -1939,11 +1939,11 @@ class HTML5_Tokenizer {
             $this->token['system'] .= $char;
         }
     }
-    
+
     private function doctypeSystemIdentifierSingleQuotedState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if ($char === "'") {
             /* U+0027 APOSTROPHE (')
             Switch to the after DOCTYPE system identifier state. */
@@ -1980,11 +1980,11 @@ class HTML5_Tokenizer {
             $this->token['system'] .= $char;
         }
     }
-    
+
     private function afterDoctypeSystemIdentifierState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
-        
+
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
@@ -2020,7 +2020,7 @@ class HTML5_Tokenizer {
             $this->state = 'bogusDoctype';
         }
     }
-    
+
     private function bogusDoctypeState() {
         /* Consume the next input character: */
         $char = $this->stream->char();
@@ -2046,15 +2046,15 @@ class HTML5_Tokenizer {
     }
 
     // private function cdataSectionState() {}
-    
+
     private function consumeCharacterReference($allowed = false, $inattr = false) {
         // This goes quite far against spec, and is far closer to the Python
         // impl., mainly because we don't do the large unconsuming the spec
         // requires.
-                
+
         // All consumed characters.
         $chars = $this->stream->char();
-        
+
         /* This section defines how to consume a character
         reference. This definition is used when parsing character
         references in text and in attributes.
@@ -2142,12 +2142,12 @@ class HTML5_Tokenizer {
                         'data' => 'numeric-entity-without-semicolon'
                     ));
                 }
-                
+
                 /* If one or more characters match the range, then take
                 them all and interpret the string of characters as a number
                 (either hexadecimal or decimal as appropriate). */
                 $codepoint = $hex ? hexdec($consumed) : (int) $consumed;
-    
+
                 /* If that number is one of the numbers in the first column
                 of the following table, then this is a parse error. Find the
                 row with that number in the first column, and return a
@@ -2189,7 +2189,7 @@ class HTML5_Tokenizer {
                         $codepoint = 0xFFFD;
                     }
                 }
-    
+
                 /* Otherwise, return a character token for the Unicode
                 character whose code point is that number. */
                 return HTML5_Data::utf8chr($codepoint);
@@ -2197,12 +2197,12 @@ class HTML5_Tokenizer {
 
         } else {
             /* Anything else */
-            
+
             /* Consume the maximum number of characters possible,
             with the consumed characters matching one of the
             identifiers in the first column of the named character
             references table (in a case-sensitive manner). */
-            
+
             // we will implement this by matching the longest
             // alphanumeric + semicolon string, and then working
             // our way backwards
@@ -2228,7 +2228,7 @@ class HTML5_Tokenizer {
                 ));
                 return '&' . $chars;
             }
-            
+
             /* If the last character matched is not a U+003B SEMICOLON
             (;), there is a parse error. */
             $semicolon = true;
@@ -2239,7 +2239,7 @@ class HTML5_Tokenizer {
                 ));
                 $semicolon = false;
             }
-            
+
 
             /* If the character reference is being consumed as part of
             an attribute, and the last character matched is not a
@@ -2274,7 +2274,7 @@ class HTML5_Tokenizer {
                 $this->emitToken(array_shift($this->stream->errors), false);
             }
         }
-        
+
         // the current structure of attributes is not a terribly good one
         $emit = $this->tree->emitToken($token);
 
