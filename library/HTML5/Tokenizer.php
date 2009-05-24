@@ -55,19 +55,9 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 class HTML5_Tokenizer {
     /**
-     * The string data we're parsing.
+     * Points to an InputStream object.
      */
-    private $data;
-    
-    /**
-     * The current integer byte position we are in $data
-     */
-    private $char;
-    
-    /**
-     * Length of $data; when $char === $data, we are at the end-of-file.
-     */
-    private $EOF;
+    protected $stream;
     
     /**
      * String state to execute.
@@ -102,14 +92,6 @@ class HTML5_Tokenizer {
      */
     protected $token;
 
-    /**
-     * States that should not have AUTO-CONSUMPTION applied.
-     */
-    private $noConsumeStates = array(
-        'characterReferenceData' => true,
-        'bogusComment' => true,
-    );
-
     // These are constants describing the content model
     const PCDATA    = 0;
     const RCDATA    = 1;
@@ -138,111 +120,7 @@ class HTML5_Tokenizer {
      * @param $data Data to parse
      */
     public function __construct($data) {
-        
-        // XXX this is actually parsing stuff
-        
-        /* Given an encoding, the bytes in the input stream must be
-        converted to Unicode characters for the tokeniser, as
-        described by the rules for that encoding, except that the
-        leading U+FEFF BYTE ORDER MARK character, if any, must not
-        be stripped by the encoding layer (it is stripped by the rule below).
-
-        Bytes or sequences of bytes in the original byte stream that
-        could not be converted to Unicode characters must be converted
-        to U+FFFD REPLACEMENT CHARACTER code points. */
-        
-        // XXX currently assuming input data is UTF-8; once we
-        // build encoding detection this will no longer be the case
-        //
-        // We previously had an mbstring implementation here, but that
-        // implementation is heavily non-conforming, so it's been
-        // omitted.
-        if (function_exists('iconv')) {
-            // non-conforming
-            $data = iconv('UTF-8', 'UTF-8//IGNORE', $data);
-        } else {
-            // we can make a conforming native implementation
-            throw new Exception('Not implemented, please install mbstring or iconv');
-        }
-
-        /* One leading U+FEFF BYTE ORDER MARK character must be
-        ignored if any are present. */
-        if (substr($data, 0, 3) === "\xEF\xBB\xBF") {
-            $data = substr($data, 3);
-        }
-        
-        /* All U+0000 NULL characters in the input must be replaced
-        by U+FFFD REPLACEMENT CHARACTERs. Any occurrences of such
-        characters is a parse error. */
-        for ($i = 0, $count = substr_count($data, "\0"); $i < $count; $i++) {
-            $this->emitToken(array(
-                'type' => self::PARSEERROR,
-                'data' => 'null-character'
-            ));
-        }
-        /* U+000D CARRIAGE RETURN (CR) characters and U+000A LINE FEED
-        (LF) characters are treated specially. Any CR characters
-        that are followed by LF characters must be removed, and any
-        CR characters not followed by LF characters must be converted
-        to LF characters. Thus, newlines in HTML DOMs are represented
-        by LF characters, and there are never any CR characters in the
-        input to the tokenization stage. */
-        $data = str_replace(
-            array(
-                "\0",
-                "\r\n",
-                "\r"
-            ),
-            array(
-                "\xEF\xBF\xBD",
-                "\n",
-                "\n"
-            ),
-            $data
-        );
-        
-        /* Any occurrences of any characters in the ranges U+0001 to
-        U+0008, U+000B,  U+000E to U+001F,  U+007F  to U+009F,
-        U+D800 to U+DFFF , U+FDD0 to U+FDEF, and
-        characters U+FFFE, U+FFFF, U+1FFFE, U+1FFFF, U+2FFFE, U+2FFFF,
-        U+3FFFE, U+3FFFF, U+4FFFE, U+4FFFF, U+5FFFE, U+5FFFF, U+6FFFE,
-        U+6FFFF, U+7FFFE, U+7FFFF, U+8FFFE, U+8FFFF, U+9FFFE, U+9FFFF,
-        U+AFFFE, U+AFFFF, U+BFFFE, U+BFFFF, U+CFFFE, U+CFFFF, U+DFFFE,
-        U+DFFFF, U+EFFFE, U+EFFFF, U+FFFFE, U+FFFFF, U+10FFFE, and
-        U+10FFFF are parse errors. (These are all control characters
-        or permanently undefined Unicode characters.) */
-        // Check PCRE is loaded.
-        if (extension_loaded('pcre')) {
-            $count = preg_match_all(
-                '/(?:
-                    [\x01-\x08\x0B\x0E-\x1F\x7F] # U+0001 to U+0008, U+000B,  U+000E to U+001F and U+007F
-                |
-                    \xC2[\x80-\x9F] # U+0080 to U+009F
-                |
-                    \xED(?:\xA0[\x80-\xFF]|[\xA1-\xBE][\x00-\xFF]|\xBF[\x00-\xBF]) # U+D800 to U+DFFFF
-                |
-                    \xEF\xB7[\x90-\xAF] # U+FDD0 to U+FDEF
-                |
-                    \xEF\xBF[\xBE\xBF] # U+FFFE and U+FFFF
-                |
-                    [\xF0-\xF4][\x8F-\xBF]\xBF[\xBE\xBF] # U+nFFFE and U+nFFFF (1 <= n <= 10_{16})
-                )/x',
-                $data,
-                $matches
-            );
-            for ($i = 0; $i < $count; $i++) {
-                $this->emitToken(array(
-                    'type' => self::PARSEERROR,
-                    'data' => 'invalid-codepoint'
-                ));
-            }
-        } else {
-            // XXX: Need non-PCRE impl, probably using substr_count
-        }
-
-        $this->data = $data;
-        $this->char = -1;
-        $this->EOF  = strlen($data);
+        $this->stream = new HTML5_InputStream($data);
         $this->tree = new HTML5_TreeConstructer;
         $this->content_model = self::PCDATA;
 
@@ -255,14 +133,10 @@ class HTML5_Tokenizer {
      * Performs the actual parsing of the document.
      */
     public function parse() {
+        //echo "\n\n";
         while($this->state !== null) {
             //echo $this->state . "\n";
-            if (!isset($this->noConsumeStates[$this->state])) {
-                // consume a character, and assign it to $this->c
-                $this->c = (++$this->char < $this->EOF) ? $this->data[$this->char] : false;
-            }    
             $this->{$this->state.'State'}();
-            
         }
     }
 
@@ -274,99 +148,22 @@ class HTML5_Tokenizer {
     }
 
     /**
-     * Returns the current line that the tokenizer is at.
+     * Returns the input stream.
      */
-    public function getCurrentLine() {
-        // Check the string isn't empty
-        if($this->EOF) {
-            // Add one to $this->char because we want the number for the next
-            // byte to be processed.
-            return substr_count($this->data, "\n", 0, $this->char + 1) + 1;
-        } else {
-            // If the string is empty, we are on the first line (sorta).
-            return 1;
-        }
-    }
-
-    /**
-     * Returns the current column of the current line that the tokenizer is at.
-     */
-    public function getColumnOffset() {
-        // strrpos is weird, and the offset needs to be negative for what we
-        // want (i.e., the last \n before $this->char). This needs to not have
-        // one (to make it point to the next character, the one we want the
-        // position of) added to it because strrpos's behaviour includes the
-        // final offset byte.
-        $lastLine = strrpos($this->data, "\n", $this->char - strlen($this->data));
-        
-        // However, for here we want the length up until the next byte to be
-        // processed, so add one to the current byte ($this->char).
-        if($lastLine !== false) {
-            $findLengthOf = substr($this->data, $lastLine + 1, $this->char - $lastLine);
-        } else {
-            $findLengthOf = substr($this->data, 0, $this->char + 1);
-        }
-        
-        // Get the length for the string we need.
-        if(extension_loaded('iconv')) {
-            return iconv_strlen($findLengthOf, 'utf-8');
-        } elseif(extension_loaded('mbstring')) {
-            return mb_strlen($findLengthOf, 'utf-8');
-        } elseif(extension_loaded('xml')) {
-            return strlen(utf8_decode($findLengthOf));
-        } else {
-            $count = count_chars($findLengthOf);
-            // 0x80 = 0x7F - 0 + 1 (one added to get inclusive range)
-            // 0x33 = 0xF4 - 0x2C + 1 (one added to get inclusive range)
-            return array_sum(array_slice($count, 0, 0x80)) +
-                   array_sum(array_slice($count, 0xC2, 0x33));
-        }
-    }
-    
-    /**
-     * Retrieve the currently consume character.
-     * @note This performs bounds checking
-     */
-    private function char() {
-        return ($this->char < $this->EOF)
-            ? $this->data[$this->char]
-            : false;
-    }
-
-    /**
-     * Return some range of characters.
-     * @note This performs bounds checking
-     * @param $s Starting index
-     * @param $l Length
-     */
-    private function character($s, $l = 1) {
-        if($s + $l <= $this->EOF) {
-            if($l === 1) {
-                return $this->data[$s];
-            } else {
-                return substr($this->data, $s, $l);
-            }
-        }
-    }
-
-    /**
-     * Matches as far as possible from $start for a certain set of bytes
-     * and returns the matched substring.
-     * @param $bytes Bytes to match.
-     * @param $start Starting index to perform search
-     */
-    private function characters($bytes, $start) {
-        $len = strspn($this->data, $bytes, $start);
-        return (string) substr($this->data, $start, $len);
+    public function stream() {
+        return $this->stream;
     }
 
     private function dataState() {
 
         // Possible optimization: mark text tokens that contain entirely
         // whitespace as whitespace tokens.
+        
+        static $lastFourChars = '';
 
         /* Consume the next input character */
-        $char = $this->c;
+        $char = $this->stream->char();
+        $lastFourChars = substr($lastFourChars . $char, -4);
 
         // see below for meaning
         $amp_cond =
@@ -402,7 +199,7 @@ class HTML5_Tokenizer {
             and U+002D HYPHEN-MINUS ("<!--"), then set the escape flag to true. */
             if(($this->content_model === self::RCDATA || $this->content_model ===
             self::CDATA) && $this->escape === false &&
-            $this->char >= 3 && $this->character($this->char - 3, 4) === '<!--') {
+            $lastFourChars === '<!--') {
                 $this->escape = true;
             }
 
@@ -434,7 +231,7 @@ class HTML5_Tokenizer {
             set the escape flag to false. */
             if(($this->content_model === self::RCDATA ||
             $this->content_model === self::CDATA) && $this->escape === true &&
-            $this->char >= 2 && $this->character($this->char - 2, 3) === '-->') {
+            substr($lastFourChars, 1) === '-->') {
                 $this->escape = false;
             }
 
@@ -453,19 +250,6 @@ class HTML5_Tokenizer {
                 'type' => self::EOF
             ));
 
-        } elseif($this->content_model === self::PLAINTEXT) {
-            // XXX it appears there is no such thing as a PLAINTEXT
-            // state in the spec. ???
-            /* When the content model flag is set to the PLAINTEXT state
-            THIS DIFFERS GREATLY FROM THE SPEC: Get the remaining characters of
-            the text and emit it as a character token. */
-            $this->emitToken(array(
-                'type' => self::CHARACTER,
-                'data' => substr($this->data, $this->char)
-            ));
-
-            $this->char = $this->EOF - 1;
-
         } else {
             /* Anything else
             THIS IS AN OPTIMIZATION: Get as many character that
@@ -479,15 +263,14 @@ class HTML5_Tokenizer {
             if ($amp_cond) $mask .= '&';
             if ($lt_cond)  $mask .= '<';
             
-            $len  = strcspn($this->data, $mask, $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil($mask);
 
             $this->emitToken(array(
                 'type' => self::CHARACTER,
-                'data' => $this->c . $char
+                'data' => $char . $chars
             ));
+            
+            $lastFourChars = substr($lastFourChars . $chars, -4);
 
             $this->state = 'data';
         }
@@ -516,6 +299,8 @@ class HTML5_Tokenizer {
     }
 
     private function tagOpenState() {
+        $char = $this->stream->char();
+        
         switch($this->content_model) {
             case self::RCDATA:
             case self::CDATA:
@@ -524,9 +309,9 @@ class HTML5_Tokenizer {
                 tag open state. Otherwise, emit a U+003C LESS-THAN
                 SIGN character token and reconsume the current input
                 character in the data state. */
-                // optimization: perform a look-ahead and duplicated
-                // data state here
-                if($this->c === '/') {
+                // We consumed above.
+                
+                if($char === '/') {
                     $this->state = 'closeTagOpen';
 
                 } else {
@@ -534,16 +319,17 @@ class HTML5_Tokenizer {
                         'type' => self::CHARACTER,
                         'data' => '<'
                     ));
+                    
+                    $this->stream->unget();
 
                     $this->state = 'data';
-                    $this->dataState();
                 }
             break;
 
             case self::PCDATA:
                 /* If the content model flag is set to the PCDATA state
                 Consume the next input character: */
-                $char = $this->c;
+                // We consumed above.
 
                 if($char === '!') {
                     /* U+0021 EXCLAMATION MARK (!)
@@ -605,6 +391,10 @@ class HTML5_Tokenizer {
                         'type' => self::PARSEERROR,
                         'data' => 'expected-tag-name-but-got-question-mark'
                     ));
+                    $this->token = array(
+                        'data' => '?',
+                        'type' => self::COMMENT
+                    );
                     $this->state = 'bogusComment';
 
                 } else {
@@ -621,81 +411,73 @@ class HTML5_Tokenizer {
                     ));
 
                     $this->state = 'data';
-                    $this->dataState();
+                    $this->stream->unget();
                 }
             break;
         }
     }
 
     private function closeTagOpenState() {
-        $next_node = strtolower($this->characters(self::ALPHA, $this->char));
-        
-        // due to the flow of the HTML 5 specification, $this->token
-        // is guaranteed to be the last STARTTAG emitted (the other
-        // possible values: ENDTAG, COMMENT and DOCTYPE, cannot be
-        // possibly invoked in RCDATA or CDATA state). A similar
-        // optimization is done in the Python implementation.
-        if ($this->token && isset($this->token['name'])) {
-            $the_same = ($this->token['name'] === $next_node);
-        } else {
-            // optimization: this accounts for an empty token case
-            $the_same = false;
-        }
-        // optimization: we combined the content model checks:
-        // i.e. what was (a && b) || (a && c) becomes a && (b || c)
-        if(
-            (
-                /* If the content model flag is set to the
-                RCDATA or CDATA states */
-                $this->content_model === self::RCDATA ||
-                $this->content_model === self::CDATA
-            ) &&
-            (
-                /* but no start tag token has ever been emitted by this
-                instance of the tokeniser (fragment case), [...] or */
-                /* the next few characters do not match the tag name of
-                the last start tag token emitted (compared in an
-                ASCII case insensitive manner), */
-                !$the_same ||
-                (
-                    /* if they do but they are not immediately followed
-                    by one of the following characters:
-                        * U+0009 CHARACTER TABULATION
-                        * U+000A LINE FEED (LF)
-                        * U+000C FORM FEED (FF)
-                        * U+0020 SPACE
-                        * U+003E GREATER-THAN SIGN (>)
-                        * U+002F SOLIDUS (/)
-                        * EOF */
-                    $the_same &&
-                    (
-                        $this->EOF !== $this->char + strlen($next_node) &&
-                        !preg_match(
-                            '/[\t\n\x0b\x0c >\/]/',
-                            $this->character(
-                                $this->char + strlen($next_node)
-                            )
-                        )
-                    )
-                )
-            )
+        if (
+            $this->content_model === self::RCDATA ||
+            $this->content_model === self::CDATA
         ) {
-            /* ...then emit a U+003C LESS-THAN SIGN character token, a
-            U+002F SOLIDUS character token, and switch to the data
-            state to process the next input character. */
-            $this->emitToken(array(
-                'type' => self::CHARACTER,
-                'data' => '</'
-            ));
-
-            $this->state = 'data';
-            $this->dataState();
-
-        } else {
-            /* Otherwise, if the content model flag is set to the PCDATA state,
-            or if the next few characters do match that tag name, consume the
-            next input character: */
-            $char = $this->c;
+            /* If the content model flag is set to the RCDATA or CDATA
+            states... */
+            $name = strtolower($this->stream->charsWhile(self::ALPHA));
+            $following = $this->stream->char();
+            $this->stream->unget();
+            if (
+                !$this->token ||
+                $this->token['name'] !== $name ||
+                $this->token['name'] === $name && !in_array($following, array("\x09", "\x0A", "\x0C", "\x20", "\x3E", "\x2F", false))
+            ) {
+                /* if no start tag token has ever been emitted by this instance
+                of the tokenizer (fragment case), or, if the next few
+                characters do not match the tag name of the last start tag
+                token emitted (compared in an ASCII case-insensitive manner),
+                or if they do but they are not immediately followed by one of
+                the following characters:
+                
+                    * U+0009 CHARACTER TABULATION
+                    * U+000A LINE FEED (LF)
+                    * U+000C FORM FEED (FF)
+                    * U+0020 SPACE
+                    * U+003E GREATER-THAN SIGN (>)
+                    * U+002F SOLIDUS (/)
+                    * EOF 
+                
+                ...then emit a U+003C LESS-THAN SIGN character token, a
+                U+002F SOLIDUS character token, and switch to the data
+                state to process the next input character. */
+                // XXX: Probably ought to replace in_array with $following === x ||...
+                
+                // We also need to emit $name now we've consumed that, as we
+                // know it'll just be emitted as a character token.
+                $this->emitToken(array(
+                    'type' => self::CHARACTER,
+                    'data' => '</' . $name
+                ));
+                
+                $this->state = 'data';
+            } else {
+                // This matches what would happen if we actually did the
+                // otherwise below (but we can't because we've consumed too
+                // much).
+                
+                // Start the end tag token with the name we already have.
+                $this->token = array(
+                    'name'  => $name,
+                    'type'  => self::ENDTAG
+                );
+                
+                // Change to tag name state.
+                $this->state = 'tagName';
+            }
+        } elseif ($this->content_model === self::PCDATA) {
+            /* Otherwise, if the content model flag is set to the PCDATA
+            state [...]: */
+            $char = $this->stream->char();
 
             if ('A' <= $char && $char <= 'Z') {
                 /* U+0041 LATIN LETTER A through to U+005A LATIN LETTER Z
@@ -745,8 +527,8 @@ class HTML5_Tokenizer {
                     'data' => '</'
                 ));
 
+                $this->stream->unget();
                 $this->state = 'data';
-                $this->dataState();
 
             } else {
                 /* Parse error. Switch to the bogus comment state. */
@@ -754,6 +536,10 @@ class HTML5_Tokenizer {
                     'type' => self::PARSEERROR,
                     'data' => 'expected-closing-tag-but-got-char'
                 ));
+                $this->token = array(
+                    'data' => $char,
+                    'type' => self::COMMENT
+                );
                 $this->state = 'bogusComment';
             }
         }
@@ -761,7 +547,7 @@ class HTML5_Tokenizer {
 
     private function tagNameState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -787,12 +573,9 @@ class HTML5_Tokenizer {
             Append the lowercase version of the current input
             character (add 0x0020 to the character's code point) to
             the current tag token's tag name. Stay in the tag name state. */
-            $len  = strspn($this->data, self::UPPER_ALPHA, $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsWhile(self::UPPER_ALPHA);
             
-            $this->token['name'] .= strtolower($this->c . $char);
+            $this->token['name'] .= strtolower($char . $chars);
             $this->state = 'tagName';
 
         } elseif($char === false) {
@@ -805,26 +588,23 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
             /* Anything else
             Append the current input character to the current tag token's tag name.
             Stay in the tag name state. */
-            $len  = strspn($this->data, self::LOWER_ALPHA, $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil("\t\n\x0C />" . self::UPPER_ALPHA);
             
-            $this->token['name'] .= $this->c . $char;
+            $this->token['name'] .= $char . $chars;
             $this->state = 'tagName';
         }
     }
 
     private function beforeAttributeNameState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         // this conditional is optimized, check bottom
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
@@ -870,7 +650,7 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -901,7 +681,7 @@ class HTML5_Tokenizer {
 
     private function attributeNameState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         // this conditional is optimized, check bottom
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
@@ -912,7 +692,7 @@ class HTML5_Tokenizer {
             Switch to the after attribute name state. */
             $this->state = 'afterAttributeName';
 
-        } elseif($char === '/' && $this->character($this->char + 1) !== '>') {
+        } elseif($char === '/') {
             /* U+002F SOLIDUS (/)
             Switch to the self-closing start tag state. */
             $this->state = 'selfClosingStartTag';
@@ -934,13 +714,10 @@ class HTML5_Tokenizer {
             character (add 0x0020 to the character's code point) to
             the current attribute's name. Stay in the attribute name
             state. */
-            $len  = strspn($this->data, self::UPPER_ALPHA, $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsWhile(self::UPPER_ALPHA);
             
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['name'] .= strtolower($this->c . $char);
+            $this->token['attr'][$last]['name'] .= strtolower($char . $chars);
 
             $this->state = 'attributeName';
 
@@ -954,7 +731,7 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -972,13 +749,10 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the current input character to the current attribute's name.
             Stay in the attribute name state. */
-            $len  = strcspn($this->data, "\t\n\x0c /=>\"'" . self::UPPER_ALPHA, $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil("\t\n\x0C /=>\"'" . self::UPPER_ALPHA);
             
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['name'] .= $this->c . $char;
+            $this->token['attr'][$last]['name'] .= $char . $chars;
 
             $this->state = 'attributeName';
         }
@@ -995,7 +769,7 @@ class HTML5_Tokenizer {
 
     private function afterAttributeNameState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         // this is an optimized conditional, check the bottom
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
@@ -1006,7 +780,7 @@ class HTML5_Tokenizer {
             Stay in the after attribute name state. */
             $this->state = 'afterAttributeName';
 
-        } elseif($char === '/' && $this->character($this->char + 1) !== '>') {
+        } elseif($char === '/') {
             /* U+002F SOLIDUS (/)
             Switch to the self-closing start tag state. */
             $this->state = 'selfClosingStartTag';
@@ -1046,7 +820,7 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1076,7 +850,7 @@ class HTML5_Tokenizer {
 
     private function beforeAttributeValueState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         // this is an optimized conditional
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
@@ -1096,8 +870,8 @@ class HTML5_Tokenizer {
             /* U+0026 AMPERSAND (&)
             Switch to the attribute value (unquoted) state and reconsume
             this input character. */
+            $this->stream->unget();
             $this->state = 'attributeValueUnquoted';
-            $this->attributeValueUnquotedState();
 
         } elseif($char === '\'') {
             /* U+0027 APOSTROPHE (')
@@ -1123,7 +897,7 @@ class HTML5_Tokenizer {
                 'data' => 'expected-attribute-value-but-got-eof'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1148,7 +922,7 @@ class HTML5_Tokenizer {
 
     private function attributeValueDoubleQuotedState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === '"') {
             /* U+0022 QUOTATION MARK (")
@@ -1172,20 +946,17 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
+            $this->stream->unget();
             $this->state = 'data';
-            $this->dataState();
 
         } else {
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (double-quoted) state. */
-            $len  = strcspn($this->data, '"&', $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil('"&');
             
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['value'] .= $this->c . $char;
+            $this->token['attr'][$last]['value'] .= $char . $chars;
 
             $this->state = 'attributeValueDoubleQuoted';
         }
@@ -1193,7 +964,7 @@ class HTML5_Tokenizer {
 
     private function attributeValueSingleQuotedState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "'") {
             /* U+0022 QUOTATION MARK (')
@@ -1215,20 +986,17 @@ class HTML5_Tokenizer {
             ));
             $this->emitToken($this->token);
 
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (single-quoted) state. */
-            $len  = strcspn($this->data, "'&", $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil("'&");
             
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['value'] .= $this->c . $char;
+            $this->token['attr'][$last]['value'] .= $char . $chars;
 
             $this->state = 'attributeValueSingleQuoted';
         }
@@ -1236,7 +1004,7 @@ class HTML5_Tokenizer {
 
     private function attributeValueUnquotedState() {
         // Consume the next input character:
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1257,7 +1025,7 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        } elseif ($this->char == $this->EOF) {
+        } elseif ($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume
             the character in the data state. */
@@ -1266,7 +1034,7 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-attribute-value-no-quotes'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1285,13 +1053,10 @@ class HTML5_Tokenizer {
             /* Anything else
             Append the current input character to the current attribute's value.
             Stay in the attribute value (unquoted) state. */
-            $len  = strcspn($this->data, "\t\n\x0c &>\"'=", $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil("\t\n\x0c &>\"'=");
             
             $last = count($this->token['attr']) - 1;
-            $this->token['attr'][$last]['value'] .= $this->c . $char;
+            $this->token['attr'][$last]['value'] .= $char . $chars;
 
             $this->state = 'attributeValueUnquoted';
         }
@@ -1322,7 +1087,7 @@ class HTML5_Tokenizer {
 
     private function afterAttributeValueQuotedState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1332,18 +1097,18 @@ class HTML5_Tokenizer {
             Switch to the before attribute name state. */
             $this->state = 'beforeAttributeName';
 
-        } elseif ($char == '/') {
+        } elseif ($char === '/') {
             /* U+002F SOLIDUS (/)
             Switch to the self-closing start tag state. */
             $this->state = 'selfClosingStartTag';
 
-        } elseif ($char == '>') {
+        } elseif ($char === '>') {
             /* U+003E GREATER-THAN SIGN (>)
             Emit the current tag token. Switch to the data state. */
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        } elseif ($this->char === $this->EOF) {
+        } elseif ($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the EOF
             character in the data state. */
@@ -1352,7 +1117,7 @@ class HTML5_Tokenizer {
                 'data' => 'unexpected-EOF-after-attribute-value'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1363,14 +1128,14 @@ class HTML5_Tokenizer {
                 'type' => self::PARSEERROR,
                 'data' => 'unexpected-character-after-attribute-value'
             ));
+            $this->stream->unget();
             $this->state = 'beforeAttributeName';
-            $this->beforeAttributeNameState();
         }
     }
 
     private function selfClosingStartTagState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if ($char === '>') {
             /* U+003E GREATER-THAN SIGN (>)
@@ -1389,7 +1154,7 @@ class HTML5_Tokenizer {
             $this->emitToken($this->token);
             $this->state = 'data';
 
-        } elseif ($this->char === $this->EOF) {
+        } elseif ($char === false) {
             /* EOF
             Parse error. Emit the current tag token. Reconsume the
             EOF character in the data state. */
@@ -1398,7 +1163,7 @@ class HTML5_Tokenizer {
                 'data' => 'unexpected-eof-after-self-closing'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1408,8 +1173,8 @@ class HTML5_Tokenizer {
                 'type' => self::PARSEERROR,
                 'data' => 'unexpected-character-after-self-closing'
             ));
+            $this->stream->unget();
             $this->state = 'beforeAttributeName';
-            $this->beforeAttributeNameState();
         }
     }
 
@@ -1423,33 +1188,29 @@ class HTML5_Tokenizer {
         consumed character before the U+003E character, if any, or up to the
         end of the file otherwise. (If the comment was started by the end of
         the file (EOF), the token is empty.) */
+        $this->token['data'] .= (string) $this->stream->charsUntil('>');
+        $this->stream->char();
         
-        $len = strcspn($this->data, '>', $this->char);
-        $data = (string) substr($this->data, $this->char, $len);
-        $this->char += $len;
-        
-        $this->emitToken(array(
-            'data' => $data,
-            'type' => self::COMMENT
-        ));
+        $this->emitToken($this->token);
 
         /* Switch to the data state. */
         $this->state = 'data';
-
-        /* If the end of the file was reached, reconsume the EOF character. */
-        if($this->char === $this->EOF) {
-            $this->char--;
-            $this->state = 'data';
-        }
     }
 
-    private function markupDeclarationOpenState() {
+    private function markupDeclarationOpenState() {        
+        // Consume for below
+        $hyphens = $this->stream->charsWhile('-', 2);
+        if ($hyphens === '-') {
+            $this->stream->unget();
+        }
+        if ($hyphens !== '--') {
+            $alpha = $this->stream->charsWhile(self::ALPHA, 7);
+        }
         
         /* If the next two characters are both U+002D HYPHEN-MINUS (-)
         characters, consume those two characters, create a comment token whose
         data is the empty string, and switch to the comment state. */
-        if($this->character($this->char, 2) === '--') {
-            ++$this->char;
+        if($hyphens === '--') {
             $this->state = 'commentStart';
             $this->token = array(
                 'data' => '',
@@ -1459,8 +1220,7 @@ class HTML5_Tokenizer {
         /* Otherwise if the next seven characters are a case-insensitive match
         for the word "DOCTYPE", then consume those characters and switch to the
         DOCTYPE state. */
-        } elseif(strtoupper($this->character($this->char, 7)) === 'DOCTYPE') {
-            $this->char += 6;
+        } elseif(strtoupper($alpha) === 'DOCTYPE') {
             $this->state = 'doctype';
 
         // XXX not implemented
@@ -1481,13 +1241,17 @@ class HTML5_Tokenizer {
                 'type' => self::PARSEERROR,
                 'data' => 'expected-dashes-or-doctype'
             ));
+            $this->token = array(
+                'data' => (string) $alpha,
+                'type' => self::COMMENT
+            );
             $this->state = 'bogusComment';
         }
     }
 
     private function commentStartState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if ($char === '-') {
             /* U+002D HYPHEN-MINUS (-)
@@ -1512,7 +1276,7 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -1525,7 +1289,7 @@ class HTML5_Tokenizer {
     
     private function commentStartDashState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         if ($char === '-') {
             /* U+002D HYPHEN-MINUS (-)
             Switch to the comment end state */
@@ -1548,7 +1312,7 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             $this->token['data'] .= '-' . $char;
@@ -1558,7 +1322,7 @@ class HTML5_Tokenizer {
 
     private function commentState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === '-') {
             /* U+002D HYPHEN-MINUS (-)
@@ -1574,25 +1338,22 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
             /* Anything else
             Append the input character to the comment token's data. Stay in
             the comment state. */
-            $len  = strcspn($this->data, '-', $this->char + 1);
-            $char = substr($this->data, $this->char + 1, $len);
-                        
-            $this->char += $len;
+            $chars = $this->stream->charsUntil('-');
             
-            $this->token['data'] .= $this->c . $char;
+            $this->token['data'] .= $char . $chars;
         }
     }
 
     private function commentEndDashState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === '-') {
             /* U+002D HYPHEN-MINUS (-)
@@ -1608,7 +1369,7 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment-end-dash'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1622,7 +1383,7 @@ class HTML5_Tokenizer {
 
     private function commentEndState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === '>') {
             /* U+003E GREATER-THAN SIGN (>)
@@ -1650,7 +1411,7 @@ class HTML5_Tokenizer {
                 'data' => 'eof-in-comment-double-dash'
             ));
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1669,7 +1430,7 @@ class HTML5_Tokenizer {
 
     private function doctypeState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1687,14 +1448,14 @@ class HTML5_Tokenizer {
                 'type' => self::PARSEERROR,
                 'data' => 'need-space-after-doctype'
             ));
+            $this->stream->unget();
             $this->state = 'beforeDoctypeName';
-            $this->beforeDoctypeNameState();
         }
     }
 
     private function beforeDoctypeNameState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1751,7 +1512,7 @@ class HTML5_Tokenizer {
                 'error' => true
             ));
 
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1770,7 +1531,7 @@ class HTML5_Tokenizer {
 
     private function doctypeNameState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1804,7 +1565,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -1824,7 +1585,7 @@ class HTML5_Tokenizer {
 
     private function afterDoctypeNameState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1850,21 +1611,18 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
             /* Anything else */
 
-            $nextSix = strtoupper($this->character($this->char, 6));
+            $nextSix = strtoupper($char . $this->stream->charsWhile(self::ALPHA, 5));
             if ($nextSix === 'PUBLIC') {
                 /* If the next six characters are an ASCII
                 case-insensitive match for the word "PUBLIC", then
                 consume those characters and switch to the before
                 DOCTYPE public identifier state. */
-                // remember, we've already consumed the first P of
-                // the nextSix. I believe this is an error in the spec.
-                $this->char += 5;
                 $this->state = 'beforeDoctypePublicIdentifier';
 
             } elseif ($nextSix === 'SYSTEM') {
@@ -1872,7 +1630,6 @@ class HTML5_Tokenizer {
                 case-insensitive match for the word "SYSTEM", then
                 consume those characters and switch to the before
                 DOCTYPE system identifier state. */
-                $this->char += 5;
                 $this->state = 'beforeDoctypeSystemIdentifier';
 
             } else {
@@ -1892,7 +1649,7 @@ class HTML5_Tokenizer {
     
     private function beforeDoctypePublicIdentifierState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -1934,7 +1691,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
@@ -1950,7 +1707,7 @@ class HTML5_Tokenizer {
     
     private function doctypePublicIdentifierDoubleQuotedState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if ($char === '"') {
             /* U+0022 QUOTATION MARK (")
@@ -1978,7 +1735,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -1991,7 +1748,7 @@ class HTML5_Tokenizer {
     
     private function doctypePublicIdentifierSingleQuotedState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if ($char === "'") {
             /* U+0027 APOSTROPHE (')
@@ -2019,7 +1776,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -2032,7 +1789,7 @@ class HTML5_Tokenizer {
     
     private function afterDoctypePublicIdentifierState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -2069,7 +1826,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -2086,7 +1843,7 @@ class HTML5_Tokenizer {
     
     private function beforeDoctypeSystemIdentifierState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -2128,7 +1885,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Parse error. Set the DOCTYPE token's force-quirks flag
@@ -2144,7 +1901,7 @@ class HTML5_Tokenizer {
     
     private function doctypeSystemIdentifierDoubleQuotedState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if ($char === '"') {
             /* U+0022 QUOTATION MARK (")
@@ -2172,7 +1929,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -2185,7 +1942,7 @@ class HTML5_Tokenizer {
     
     private function doctypeSystemIdentifierSingleQuotedState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if ($char === "'") {
             /* U+0027 APOSTROPHE (')
@@ -2213,7 +1970,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -2226,7 +1983,7 @@ class HTML5_Tokenizer {
     
     private function afterDoctypeSystemIdentifierState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
         
         if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
             /* U+0009 CHARACTER TABULATION
@@ -2249,7 +2006,7 @@ class HTML5_Tokenizer {
             ));
             $this->token['force-quirks'] = true;
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
         } else {
             /* Anything else
@@ -2266,7 +2023,7 @@ class HTML5_Tokenizer {
     
     private function bogusDoctypeState() {
         /* Consume the next input character: */
-        $char = $this->c;
+        $char = $this->stream->char();
 
         if ($char === '>') {
             /* U+003E GREATER-THAN SIGN (>)
@@ -2279,7 +2036,7 @@ class HTML5_Tokenizer {
             Emit the DOCTYPE token. Reconsume the EOF character in
             the data state. */
             $this->emitToken($this->token);
-            $this->char--;
+            $this->stream->unget();
             $this->state = 'data';
 
         } else {
@@ -2291,6 +2048,13 @@ class HTML5_Tokenizer {
     // private function cdataSectionState() {}
     
     private function consumeCharacterReference($allowed = false, $inattr = false) {
+        // This goes quite far against spec, and is far closer to the Python
+        // impl., mainly because we don't do the large unconsuming the spec
+        // requires.
+                
+        // All consumed characters.
+        $chars = $this->stream->char();
+        
         /* This section defines how to consume a character
         reference. This definition is used when parsing character
         references in text and in attributes.
@@ -2298,13 +2062,15 @@ class HTML5_Tokenizer {
         The behavior depends on the identity of the next character
         (the one immediately after the U+0026 AMPERSAND character): */
 
-        
-        $next = $this->character($this->char + 1);
         if (
-            $next === null ||
-            // possible optimization
-            preg_match("/^[\x09\n\x0c <&]$/", $next) ||
-            ($allowed !== false && $next === $allowed)
+            $chars[0] === "\x09" ||
+            $chars[0] === "\x0A" ||
+            $chars[0] === "\x0C" ||
+            $chars[0] === "\x20" ||
+            $chars[0] === '<' ||
+            $chars[0] === '&' ||
+            $chars === false ||
+            $chars[0] === $allowed
         ) {
             /* U+0009 CHARACTER TABULATION
                U+000A LINE FEED (LF)
@@ -2316,49 +2082,47 @@ class HTML5_Tokenizer {
                The additional allowed character, if there is one
             Not a character reference. No characters are consumed,
             and nothing is returned. (This is not an error, either.) */
-            return false;
-        } elseif ($next == '#') {
+            // We already consumed, so unconsume.
+            $this->stream->unget();
+            return '&';
+        } elseif ($chars[0] === '#') {
             /* Consume the U+0023 NUMBER SIGN. */
-            $start = $this->char++;
+            // Um, yeah, we already did that.
             /* The behavior further depends on the character after
             the U+0023 NUMBER SIGN: */
-            switch($this->character($this->char + 1)) {
+            $chars .= $this->stream->char();
+            if (isset($chars[1]) && ($chars[1] === 'x' || $chars[1] === 'X')) {
                 /* U+0078 LATIN SMALL LETTER X
                    U+0058 LATIN CAPITAL LETTER X */
-                case 'x':
-                case 'X':
-                    /* Consume the X. */
-                    ++$this->char;
-                    /* Follow the steps below, but using the range of
-                    characters U+0030 DIGIT ZERO through to U+0039 DIGIT
-                    NINE, U+0061 LATIN SMALL LETTER A through to U+0066
-                    LATIN SMALL LETTER F, and U+0041 LATIN CAPITAL LETTER
-                    A, through to U+0046 LATIN CAPITAL LETTER F (in other
-                    words, 0123456789, ABCDEF, abcdef). */
-                    $char_class = self::HEX;
-                    /* When it comes to interpreting the
-                    number, interpret it as a hexadecimal number. */
-                    $hex = true;
-                break;
-
+                /* Consume the X. */
+                // Um, yeah, we already did that.
+                /* Follow the steps below, but using the range of
+                characters U+0030 DIGIT ZERO through to U+0039 DIGIT
+                NINE, U+0061 LATIN SMALL LETTER A through to U+0066
+                LATIN SMALL LETTER F, and U+0041 LATIN CAPITAL LETTER
+                A, through to U+0046 LATIN CAPITAL LETTER F (in other
+                words, 0123456789, ABCDEF, abcdef). */
+                $char_class = self::HEX;
+                /* When it comes to interpreting the
+                number, interpret it as a hexadecimal number. */
+                $hex = true;
+            } else {
                 /* Anything else */
-                default:
-                    /* Follow the steps below, but using the range of
-                    characters U+0030 DIGIT ZERO through to U+0039 DIGIT
-                    NINE (i.e. just 0123456789). */
-                    $char_class = self::DIGIT;
-                    /* When it comes to interpreting the number,
-                    interpret it as a decimal number. */
-                    $hex = false;
-                break;
+                // Unconsume because we shouldn't have consumed this.
+                $chars = $chars[0];
+                $this->stream->unget();
+                /* Follow the steps below, but using the range of
+                characters U+0030 DIGIT ZERO through to U+0039 DIGIT
+                NINE (i.e. just 0123456789). */
+                $char_class = self::DIGIT;
+                /* When it comes to interpreting the number,
+                interpret it as a decimal number. */
+                $hex = false;
             }
 
             /* Consume as many characters as match the range of characters given above. */
-            $consumed = $this->characters($char_class, $this->char + 1);
-            if ($consumed !== '') {
-                $len = strlen($consumed);
-                $this->char += $len;
-            } else {
+            $consumed = $this->stream->charsWhile($char_class);
+            if ($consumed === '' || $consumed === false) {
                 /* If no characters match the range, then don't consume
                 any characters (and unconsume the U+0023 NUMBER SIGN
                 character and, if appropriate, the X character). This
@@ -2367,87 +2131,69 @@ class HTML5_Tokenizer {
                     'type' => self::PARSEERROR,
                     'data' => 'expected-numeric-entity'
                 ));
-                $this->char = $start;
-                return false;
-            }
-            
-            /* Otherwise, if the next character is a U+003B SEMICOLON,
-            consume that too. If it isn't, there is a parse error. */
-            if ($this->character($this->char + 1) === ';') {
-                ++$this->char;
+                return '&' . $chars;
             } else {
-                $this->emitToken(array(
-                    'type' => self::PARSEERROR,
-                    'data' => 'numeric-entity-without-semicolon'
-                ));
+                /* Otherwise, if the next character is a U+003B SEMICOLON,
+                consume that too. If it isn't, there is a parse error. */
+                if ($this->stream->char() !== ';') {
+                    $this->stream->unget();
+                    $this->emitToken(array(
+                        'type' => self::PARSEERROR,
+                        'data' => 'numeric-entity-without-semicolon'
+                    ));
+                }
+                
+                /* If one or more characters match the range, then take
+                them all and interpret the string of characters as a number
+                (either hexadecimal or decimal as appropriate). */
+                $codepoint = $hex ? hexdec($consumed) : (int) $consumed;
+    
+                /* If that number is one of the numbers in the first column
+                of the following table, then this is a parse error. Find the
+                row with that number in the first column, and return a
+                character token for the Unicode character given in the
+                second column of that row. */
+                $new_codepoint = HTML5_Data::getRealCodepoint($codepoint);
+                if ($new_codepoint) {
+                    $this->emitToken(array(
+                        'type' => self::PARSEERROR,
+                        'data' => 'illegal-windows-1252-entity'
+                    ));
+                    $codepoint = $new_codepoint;
+                } else {
+                    /* Otherwise, if the number is in the range 0x0000 to 0x0008,
+                    U+000B,  U+000E to 0x001F,  0x007F  to 0x009F, 0xD800 to 0xDFFF ,
+                    0xFDD0 to 0xFDEF, or is one of 0xFFFE, 0xFFFF, 0x1FFFE, 0x1FFFF,
+                    0x2FFFE, 0x2FFFF, 0x3FFFE, 0x3FFFF, 0x4FFFE, 0x4FFFF, 0x5FFFE,
+                    0x5FFFF, 0x6FFFE, 0x6FFFF, 0x7FFFE, 0x7FFFF, 0x8FFFE, 0x8FFFF,
+                    0x9FFFE, 0x9FFFF, 0xAFFFE, 0xAFFFF, 0xBFFFE, 0xBFFFF, 0xCFFFE,
+                    0xCFFFF, 0xDFFFE, 0xDFFFF, 0xEFFFE, 0xEFFFF, 0xFFFFE, 0xFFFFF,
+                    0x10FFFE, or 0x10FFFF, or is higher than 0x10FFFF, then this
+                    is a parse error; return a character token for the U+FFFD
+                    REPLACEMENT CHARACTER character instead. */
+                    // && has higher precedence than ||
+                    if (
+                        $codepoint >= 0x0000 && $codepoint <= 0x0008 ||
+                        $codepoint === 0x000B ||
+                        $codepoint >= 0x000E && $codepoint <= 0x001F ||
+                        $codepoint >= 0x007F && $codepoint <= 0x009F ||
+                        $codepoint >= 0xD800 && $codepoint <= 0xDFFF ||
+                        $codepoint >= 0xFDD0 && $codepoint <= 0xFDEF ||
+                        ($codepoint & 0xFFFE) === 0xFFFE ||
+                        $codepoint > 0x10FFFF
+                    ) {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'illegal-codepoint-for-numeric-entity'
+                        ));
+                        $codepoint = 0xFFFD;
+                    }
+                }
+    
+                /* Otherwise, return a character token for the Unicode
+                character whose code point is that number. */
+                return HTML5_Data::utf8chr($codepoint);
             }
-            
-            /* If one or more characters match the range, then take
-            them all and interpret the string of characters as a number
-            (either hexadecimal or decimal as appropriate). */
-            $codepoint = $hex ? hexdec($consumed) : (int) $consumed;
-
-            /* If that number is one of the numbers in the first column
-            of the following table, then this is a parse error. Find the
-            row with that number in the first column, and return a
-            character token for the Unicode character given in the
-            second column of that row. */
-            $new_codepoint = HTML5_Data::getRealCodepoint($codepoint);
-            if ($new_codepoint) {
-                $this->emitToken(array(
-                    'type' => self::PARSEERROR,
-                    'data' => 'illegal-windows-1252-entity'
-                ));
-                $codepoint = $new_codepoint;
-            }
-
-            /* Otherwise, if the number is in the range 0x0000 to 0x0008,
-            U+000B,  U+000E to 0x001F,  0x007F  to 0x009F, 0xD800 to 0xDFFF ,
-            0xFDD0 to 0xFDEF, or is one of 0xFFFE, 0xFFFF, 0x1FFFE, 0x1FFFF,
-            0x2FFFE, 0x2FFFF, 0x3FFFE, 0x3FFFF, 0x4FFFE, 0x4FFFF, 0x5FFFE,
-            0x5FFFF, 0x6FFFE, 0x6FFFF, 0x7FFFE, 0x7FFFF, 0x8FFFE, 0x8FFFF,
-            0x9FFFE, 0x9FFFF, 0xAFFFE, 0xAFFFF, 0xBFFFE, 0xBFFFF, 0xCFFFE,
-            0xCFFFF, 0xDFFFE, 0xDFFFF, 0xEFFFE, 0xEFFFF, 0xFFFFE, 0xFFFFF,
-            0x10FFFE, or 0x10FFFF, or is higher than 0x10FFFF, then this
-            is a parse error; return a character token for the U+FFFD
-            REPLACEMENT CHARACTER character instead. */
-            // && has higher precedence than ||
-            if (
-                $codepoint >= 0x0000 && $codepoint <= 0x0008 ||
-                $codepoint >= 0x000E && $codepoint <= 0x001F ||
-                $codepoint >= 0x007F && $codepoint <= 0x009F ||
-                $codepoint >= 0xD800 && $codepoint <= 0xDFFF ||
-                $codepoint >= 0xFDD0 && $codepoint <= 0xFDEF ||
-                $codepoint == 0x000B ||
-                $codepoint == 0xFFFE || $codepoint == 0xFFFF ||
-                $codepoint == 0x1FFFE || $codepoint == 0x1FFFF ||
-                $codepoint == 0x2FFFE || $codepoint == 0x2FFFF ||
-                $codepoint == 0x3FFFE || $codepoint == 0x3FFFF ||
-                $codepoint == 0x4FFFE || $codepoint == 0x4FFFF ||
-                $codepoint == 0x5FFFE || $codepoint == 0x5FFFF ||
-                $codepoint == 0x6FFFE || $codepoint == 0x6FFFF ||
-                $codepoint == 0x7FFFE || $codepoint == 0x7FFFF ||
-                $codepoint == 0x8FFFE || $codepoint == 0x8FFFF ||
-                $codepoint == 0x9FFFE || $codepoint == 0x9FFFF ||
-                $codepoint == 0xAFFFE || $codepoint == 0xAFFFF ||
-                $codepoint == 0xBFFFE || $codepoint == 0xBFFFF ||
-                $codepoint == 0xCFFFE || $codepoint == 0xCFFFF ||
-                $codepoint == 0xDFFFE || $codepoint == 0xDFFFF ||
-                $codepoint == 0xEFFFE || $codepoint == 0xEFFFF ||
-                $codepoint == 0xFFFFE || $codepoint == 0xFFFFF ||
-                $codepoint == 0x10FFFE || $codepoint == 0x10FFFF ||
-                $codepoint > 0x10FFFF
-            ) {
-                $this->emitToken(array(
-                    'type' => self::PARSEERROR,
-                    'data' => 'illegal-codepoint-for-numeric-entity'
-                ));
-                $codepoint = 0xFFFD;
-            }
-
-            /* Otherwise, return a character token for the Unicode
-            character whose code point is that number. */
-            return HTML5_Data::utf8chr($codepoint);
 
         } else {
             /* Anything else */
@@ -2460,15 +2206,13 @@ class HTML5_Tokenizer {
             // we will implement this by matching the longest
             // alphanumeric + semicolon string, and then working
             // our way backwards
-            
-            $consumed = $this->characters(self::DIGIT . self::ALPHA . ';', $this->char + 1);
-            $len = strlen($consumed);
-            $start = $this->char;
+            $chars .= $this->stream->charsWhile(self::DIGIT . self::ALPHA . ';', HTML5_Data::getNamedCharacterReferenceMaxLength() - 1);
+            $len = strlen($chars);
 
             $refs = HTML5_Data::getNamedCharacterReferences();
             $codepoint = false;
             for($c = $len; $c > 0; $c--) {
-                $id = substr($consumed, 0, $c);
+                $id = substr($chars, 0, $c);
                 if(isset($refs[$id])) {
                     $codepoint = $refs[$id];
                     break;
@@ -2482,12 +2226,11 @@ class HTML5_Tokenizer {
                     'type' => self::PARSEERROR,
                     'data' => 'expected-named-entity'
                 ));
-                return false;
+                return '&' . $chars;
             }
             
             /* If the last character matched is not a U+003B SEMICOLON
             (;), there is a parse error. */
-            $this->char += $c;
             $semicolon = true;
             if (substr($id, -1) !== ';') {
                 $this->emitToken(array(
@@ -2509,24 +2252,29 @@ class HTML5_Tokenizer {
             and nothing is returned. */
             if (
                 $inattr && !$semicolon &&
-                $this->char + 1 !== $this->EOF &&
-                preg_match('/^[0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz]$/', $this->character($this->char + 1))
+                strspn(substr($chars, $c, 1), self::ALPHA . self::DIGIT)
             ) {
-                $this->char = $start;
-                return false;
+                return '&' . $chars;
             }
 
             /* Otherwise, return a character token for the character
             corresponding to the character reference name (as given
             by the second column of the named character references table). */
-            return HTML5_Data::utf8chr($codepoint);
+            return HTML5_Data::utf8chr($codepoint) . substr($chars, $c);
         }
     }
 
     /**
      * Emits a token, passing it on to the tree builder.
      */
-    protected function emitToken($token) {
+    protected function emitToken($token, $checkStream = true) {
+        if ($checkStream) {
+            // Emit errors from input stream.
+            while ($this->stream->errors) {
+                $this->emitToken(array_shift($this->stream->errors), false);
+            }
+        }
+        
         // the current structure of attributes is not a terribly good one
         $emit = $this->tree->emitToken($token);
 

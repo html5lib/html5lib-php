@@ -25,7 +25,15 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
     }
     // --end mismatched interface
 
-    protected function emitToken($token) {
+    protected function emitToken($token, $checkStream = true) {
+        if ($checkStream) {
+            // Emit errors from input stream.
+            while ($this->stream->errors) {
+                $this->emitToken(array_shift($this->stream->errors), false);
+            }
+        }
+                //var_dump($token);
+        
         // tree handling code omitted
         switch ($token['type']) {
             case self::DOCTYPE:

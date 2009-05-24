@@ -46,6 +46,8 @@ class HTML5_Data
     
     protected static $namedCharacterReferences;
     
+    protected static $namedCharacterReferenceMaxLength;
+    
     /**
      * Returns the "real" Unicode codepoint of a malformed character
      * reference.
@@ -62,6 +64,16 @@ class HTML5_Data
         }
         return self::$namedCharacterReferences;
     }
+    
+    public static function getNamedCharacterReferenceMaxLength() {
+        if (!self::$namedCharacterReferenceMaxLength) {
+            $namedCharacterReferences = self::getNamedCharacterReferences();
+            $lengths = array_map('strlen', array_keys($namedCharacterReferences));
+            self::$namedCharacterReferenceMaxLength = max($lengths);
+        }
+        return self::$namedCharacterReferenceMaxLength;
+    }
+        
     
     /**
      * Converts a Unicode codepoint to sequence of UTF-8 bytes.
