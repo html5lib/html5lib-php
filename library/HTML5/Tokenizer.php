@@ -33,26 +33,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // all flags are in hyphenated form
 
-// Global optimizations to take note of (i.e., if you fix a bug in
-// one optimization somewhere, fix it everywhere else)
-// Optimization comments are marked with OOO
-
-// AUTO-CONSUMPTION (i.e. THE TUBERCULOSIS HACK)
-// For all states, a character is automatically consumed and placed
-// in $this->c. Thus, you will see an assignment $char = $this->char
-// in place of the usual $this->char++. In the event that a state
-// doesn't normally consume a character, we decrement $this->char
-// and refuse to use $this->c. This is VERY IMPORTANT, otherwise
-// the mapping of spec to code won't really make sense.
-// We also have a $noConsumeStates variable, for telling the loop
-// not to consume characters in the rare cases it isn't helpful.
-
-// Reprocess token
-// Instead of decrementing the char pointer and letting the loop do
-// its thing, we simply directly invoke the state we want to reprocess
-// the character in. The same goes for EOF, except we directly invoke
-// the EOF() method.
-
 class HTML5_Tokenizer {
     /**
      * Points to an InputStream object.
