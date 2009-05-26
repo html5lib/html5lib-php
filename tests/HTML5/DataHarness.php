@@ -37,13 +37,19 @@ abstract class HTML5_DataHarness extends UnitTestCase
         $this->reporter = $reporter;
         $started = false;
         foreach ($this->getDataTests() as $test) {
-            if ($reporter->shouldInvoke($this->getLabel(), $this->getDescription($test))) {
+            $method = $this->getDescription($test);
+            if ($reporter->shouldInvoke($this->getLabel(), $method)) {
                 if (! $started) {
                     $reporter->paintCaseStart($this->getLabel());
                     $started = true;
                 }
-                // errors are not trapped
+                $context = SimpleTest::getContext();
+                $queue = $context->get('SimpleErrorQueue');
+                $queue->setTestCase($this);
+                set_error_handler('SimpleTestErrorHandler');
                 $this->invoke($test);
+                restore_error_handler();
+                $queue->tally();
             }
         }
         if ($started) {
