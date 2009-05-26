@@ -55,4 +55,74 @@ class HTML5_TestData
             $this->tests[] = $test;
         }
     }
+
+    /**
+     * Converts a DOMDocument into string form as seen in test cases.
+     */
+    public static function strDom($dom, $prefix = '| ') {
+        $ret = array();
+        $indent = 2;
+        $level  = -1; // since DOMDocument doesn't get rendered
+        $skip = false;
+        $next = $dom;
+        while ($next) {
+            $text = false;
+            $subnodes = array();
+            switch ($next->nodeType) {
+                case XML_DOCUMENT_NODE:
+                case XML_HTML_DOCUMENT_NODE:
+                    if ($next->doctype) {
+                        $subnode = '<!DOCTYPE ';
+                        $subnode .= $next->doctype->name;
+                        if ($next->doctype->publicId) {
+                            $subnode .= ' "' . $next->doctype->publicId . '"';
+                        }
+                        if ($next->doctype->systemId) {
+                            $subnode .= ' "' . $next->doctype->systemId . '"';
+                        }
+                        $subnode .= '>';
+                        $subnodes[] = $subnode;
+                    }
+                    break;
+                case XML_TEXT_NODE:
+                    $text = '"' . $next->data . '"';
+                    break;
+                case XML_COMMENT_NODE:
+                    $text = "<!-- {$next->data} -->";
+                    break;
+                case XML_ELEMENT_NODE:
+                    $text = "<{$next->tagName}>";
+                    foreach ($next->attributes as $attr) {
+                        $subnodes[] = "{$attr->name}=\"{$attr->value}\"";
+                    }
+                    sort($subnodes);
+                    break;
+            }
+            if (!$skip) {
+                // code duplication
+                if ($text) {
+                    $ret[] = $prefix . str_repeat(' ', $indent * $level) . $text;
+                }
+                foreach ($subnodes as $node) {
+                    $ret[] = $prefix . str_repeat(' ', $indent * ($level + 1)) . $node;
+                }
+            }
+            if ($next->firstChild && !$skip) {
+                $next = $next->firstChild;
+                $level++;
+                $skip = false;
+            } elseif ($next->nextSibling) {
+                $next = $next->nextSibling;
+                $skip = false;
+            } elseif ($next->parentNode) {
+                $next = $next->parentNode;
+                $level--;
+                $skip = true;
+            } else {
+                $next = false;
+            }
+        }
+        return implode("
+", $ret);
+    }
 }
