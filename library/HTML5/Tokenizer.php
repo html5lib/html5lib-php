@@ -52,11 +52,6 @@ class HTML5_Tokenizer {
     private $escape = false;
 
     /**
-     * The value of the auto-consumed byte. See AUTO-CONSUMPTION.
-     */
-    private $c;
-
-    /**
      * Current content model we are parsing as.
      */
     protected $content_model;
@@ -212,9 +207,6 @@ class HTML5_Tokenizer {
                         THIS IS AN OPTIMIZATION: Get as many character that
                         otherwise would also be treated as a character token and emit it
                         as a single character token. Stay in the data state. */
-                        // XXX The complexity of the extra code we would need
-                        // to insert for this optimization makes justifying this
-                        // for less used codepaths difficult.
 
                         $mask = '->';
                         if ($amp_cond) $mask .= '&';
@@ -502,7 +494,7 @@ class HTML5_Tokenizer {
                 break;
 
                 case 'tagName':
-                    // Consume the next input character:
+                    /* Consume the next input character: */
                     $char = $this->stream->char();
 
                     if($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
@@ -2215,8 +2207,6 @@ class HTML5_Tokenizer {
         }
     }
 
-    // this state is not actually called using the state machine
-    // but invoked directly
     private function characterReferenceInAttributeValue($allowed = false) {
         /* Attempt to consume a character reference. */
         $entity = $this->consumeCharacterReference($allowed, true);
@@ -2233,7 +2223,6 @@ class HTML5_Tokenizer {
         $last = count($this->token['attr']) - 1;
         $this->token['attr'][$last]['value'] .= $char;
 
-        // see method name for impl
         /* Finally, switch back to the attribute value state that you
         were in when were switched into this state. */
     }
