@@ -102,6 +102,7 @@ class HTML5_Tokenizer {
      */
     public function parse() {
         $state = 'data';
+        $lastFourChars = '';
         //echo "\n\n";
         while($state !== null) {
             //echo $state . "\n";
@@ -110,8 +111,6 @@ class HTML5_Tokenizer {
 
                     // Possible optimization: mark text tokens that contain entirely
                     // whitespace as whitespace tokens.
-
-                    static $lastFourChars = '';
 
                     /* Consume the next input character */
                     $char = $this->stream->char();
