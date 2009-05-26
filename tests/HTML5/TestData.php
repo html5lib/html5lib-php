@@ -27,9 +27,9 @@ class HTML5_TestData
             eval($code);
         }
     }
-    
+
     public $tests;
-    
+
     public function __construct($filename) {
         $test = array();
         $newTestHeading = null;
@@ -53,6 +53,12 @@ class HTML5_TestData
         if (!empty($test)) {
             $test[$heading] = substr($test[$heading], 0, -1);
             $this->tests[] = $test;
+        }
+        // normalize
+        foreach ($this->tests as &$test) {
+            foreach ($test as $key => $value) {
+                $test[$key] = rtrim($value, "\n");
+            }
         }
     }
 
@@ -122,7 +128,6 @@ class HTML5_TestData
                 $next = false;
             }
         }
-        return implode("
-", $ret);
+        return implode("\n", $ret);
     }
 }

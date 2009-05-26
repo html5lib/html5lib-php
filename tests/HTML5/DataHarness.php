@@ -24,6 +24,10 @@ abstract class HTML5_DataHarness extends UnitTestCase
      * all test into memory
      */
     abstract public function getDataTests();
+    /**
+     * Returns a description of the test
+     */
+    abstract public function getDescription($test);
     public function run($reporter) {
         // this is all duplicated code, kinda ugly
         // no skip support
@@ -33,7 +37,7 @@ abstract class HTML5_DataHarness extends UnitTestCase
         $this->reporter = $reporter;
         $started = false;
         foreach ($this->getDataTests() as $test) {
-            if ($reporter->shouldInvoke($this->getLabel(), $test->description)) {
+            if ($reporter->shouldInvoke($this->getLabel(), $this->getDescription($test))) {
                 if (! $started) {
                     $reporter->paintCaseStart($this->getLabel());
                     $started = true;
