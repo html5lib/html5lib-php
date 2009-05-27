@@ -682,7 +682,7 @@ class HTML5_TreeConstructer {
                         bottommost node of the stack). */
                         $stop = false;
                         $node = $this->stack[$n];
-                        $cat  = $this->getElementCategory($node->tagName);
+                        $cat  = $this->getElementCategory($node);
 
                         // for case 'li':
                         /* 3. If node is an li element, then act as if an end
@@ -1417,7 +1417,7 @@ class HTML5_TreeConstructer {
                         $length = count($this->stack);
 
                         for($s = $fe_s_pos + 1; $s < $length; $s++) {
-                            $category = $this->getElementCategory($this->stack[$s]->nodeName);
+                            $category = $this->getElementCategory($this->stack[$s]);
 
                             if($category !== self::PHRASING && $category !== self::FORMATTING) {
                                 $furthest_block = $this->stack[$s];
@@ -1602,7 +1602,8 @@ class HTML5_TreeConstructer {
 
                         /* Clear the list of active formatting elements up to the
                          * last marker. */
-                        $marker = end(array_keys($this->a_formatting, self::MARKER, true));
+                        $keys = array_keys($this->a_formatting, self::MARKER, true);
+                        $marker = end($keys);
 
                         for($n = count($this->a_formatting) - 1; $n > $marker; $n--) {
                             array_pop($this->a_formatting);
@@ -2339,7 +2340,7 @@ class HTML5_TreeConstructer {
             /* If the current node is an optgroup element, then pop that node
             from the stack of open elements. Otherwise, this is a parse error,
             ignore the token. */
-            if($this->stack[$elements_in_stack - 1] === 'optgroup') {
+            if(end($this->stack) === 'optgroup') {
                 array_pop($this->stack);
             } else {
                 // parse error
@@ -2411,8 +2412,9 @@ class HTML5_TreeConstructer {
 
     case self::IN_SELECT_IN_TABLE:
 
-        if(in_array($token['name'], array('caption', 'table', 'tbody',
-        'tfoot', 'thead', 'tr', 'td', 'th')) && $token['type'] === HTML5_Tokenizer::STARTTAG) {
+        if($token['type'] === HTML5_Tokenizer::STARTTAG &&
+        in_array($token['name'], array('caption', 'table', 'tbody',
+        'tfoot', 'thead', 'tr', 'td', 'th'))) {
             // parse error
             $this->emitToken(array(
                 'name' => 'select',
@@ -2422,8 +2424,8 @@ class HTML5_TreeConstructer {
 
         /* An end tag whose tag name is one of: "caption", "table", "tbody",
         "tfoot", "thead", "tr", "td", "th" */
-        } elseif(in_array($token['name'], array('caption', 'table', 'tbody',
-        'tfoot', 'thead', 'tr', 'td', 'th')) && $token['type'] === HTML5_Tokenizer::ENDTAG) {
+        } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
+        in_array($token['name'], array('caption', 'table', 'tbody', 'tfoot', 'thead', 'tr', 'td', 'th')))  {
             /* Parse error. */
             // parse error
 
@@ -2517,13 +2519,13 @@ class HTML5_TreeConstructer {
             // parse error
 
         /* A start tag with the tag name "frameset" */
-        } elseif($token['name'] === 'frameset' &&
-        $token['type'] === HTML5_Tokenizer::STARTTAG) {
+        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG &&
+        $token['name'] === 'frameset') {
             $this->insertElement($token);
 
         /* An end tag with the tag name "frameset" */
-        } elseif($token['name'] === 'frameset' &&
-        $token['type'] === HTML5_Tokenizer::ENDTAG) {
+        } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
+        $token['name'] === 'frameset') {
             /* If the current node is the root html element, then this is a
             parse error; ignore the token. (fragment case) */
             if(end($this->stack)->nodeName === 'html') {
@@ -2542,8 +2544,8 @@ class HTML5_TreeConstructer {
             }
 
         /* A start tag with the tag name "frame" */
-        } elseif($token['name'] === 'frame' &&
-        $token['type'] === HTML5_Tokenizer::STARTTAG) {
+        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG &&
+        $token['name'] === 'frame') {
             /* Insert an HTML element for the token. */
             $this->insertElement($token);
 
@@ -2591,13 +2593,13 @@ class HTML5_TreeConstructer {
             $this->processWithRulesFor($token, self::IN_BODY);
 
         /* An end tag with the tag name "html" */
-        } elseif($token['name'] === 'html' &&
-        $token['type'] === HTML5_Tokenizer::ENDTAG) {
+        } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
+        $token['name'] === 'html') {
             $this->mode = self::AFTER_AFTER_FRAMESET;
 
         /* A start tag with the tag name "noframes" */
-        } elseif($token['name'] === 'noframes' &&
-        $token['type'] === HTML5_Tokenizer::STARTTAG) {
+        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG &&
+        $token['name'] === 'noframes') {
             $this->processWithRulesFor($token, self::IN_HEAD);
 
         } elseif($token['type'] === HTML5_Tokenizer::EOF) {
@@ -2663,12 +2665,13 @@ class HTML5_TreeConstructer {
     private function insertElement($token, $append = true) {
         $el = $this->dom->createElement($token['name']);
 
-        foreach($token['attr'] as $attr) {
-            if(!$el->hasAttribute($attr['name'])) {
-                $el->setAttribute($attr['name'], $attr['value']);
+        if (!empty($token['attr'])) {
+            foreach($token['attr'] as $attr) {
+                if(!$el->hasAttribute($attr['name'])) {
+                    $el->setAttribute($attr['name'], $attr['value']);
+                }
             }
         }
-
         $this->appendToRealParent($el);
         $this->stack[] = $el;
 
@@ -2869,6 +2872,7 @@ class HTML5_TreeConstructer {
     }
 
     private function getElementCategory($node) {
+        if (!is_object($node)) debug_print_backtrace();
         $name = $node->tagName;
         if(in_array($name, $this->special))
             return self::SPECIAL;
