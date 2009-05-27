@@ -33,7 +33,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //
 //
 // "wasn't ignored" is a pretty big bug that results in infinite
-// loops if not checked
+// loops if not checked. Right now all of these calls are commented
+// out.
 
 class HTML5_TreeConstructer {
     public $stack = array();
@@ -2690,7 +2691,13 @@ class HTML5_TreeConstructer {
 
     private function appendToRealParent($node) {
         if($this->foster_parent === null) {
-            end($this->stack)->appendChild($node);
+            $parent = end($this->stack);
+            if ($node instanceof DOMCharacterData && $parent->lastChild instanceof DOMCharacterData) {
+                // attach text to previous node
+                $parent->lastChild->data .= $node->data;
+            } else {
+                $parent->appendChild($node);
+            }
 
         } elseif($this->foster_parent !== null) {
             /* If the foster parent element is the parent element of the
