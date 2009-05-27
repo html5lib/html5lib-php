@@ -2692,12 +2692,7 @@ class HTML5_TreeConstructer {
     private function appendToRealParent($node) {
         if($this->foster_parent === null) {
             $parent = end($this->stack);
-            if ($node instanceof DOMCharacterData && $parent->lastChild instanceof DOMCharacterData) {
-                // attach text to previous node
-                $parent->lastChild->data .= $node->data;
-            } else {
-                $parent->appendChild($node);
-            }
+            $this->appendChild($parent, $node);
 
         } elseif($this->foster_parent !== null) {
             /* If the foster parent element is the parent element of the
@@ -2714,13 +2709,36 @@ class HTML5_TreeConstructer {
                 }
             }
 
-            if(isset($table) && $this->foster_parent->isSameNode($table->parentNode))
-                $this->foster_parent->insertBefore($node, $table);
-            else
-                $this->foster_parent->appendChild($node);
+            if(isset($table) && $this->foster_parent->isSameNode($table->parentNode)) {
+                $this->insertBefore($this->foster_parent, $node, $table);
+            } else {
+                $this->appendChild($this->foster_parent, $node);
+            }
 
             $this->foster_parent = null;
         }
+    }
+
+    private function appendChild($parent, $node) {
+        if ($node instanceof DOMCharacterData && $parent->lastChild instanceof DOMCharacterData) {
+            // attach text to previous node
+            $parent->lastChild->data .= $node->data;
+        } else {
+            $parent->appendChild($node);
+        }
+    }
+
+    private function insertBefore($parent, $node, $marker) {
+        if ($node instanceof DOMCharacterData) {
+            if ($marker instanceof DOMCharacterData) {
+                $marker->data = $node->data . $marker->data;
+                return;
+            } elseif ($marker->previousSibling && $marker->previousSibling instanceof DOMCharacterData) {
+                $marker->previousSibling->data .= $node->data;
+                return;
+            }
+        }
+        $parent->insertBefore($node, $marker);
     }
 
     private function elementInScope($el, $table = false) {

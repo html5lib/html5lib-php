@@ -13,8 +13,8 @@ class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
         $tokenizer->parse();
         $GLOBALS['TIME'] += get_microtime();
         $this->assertIdentical(
-            HTML5_TestData::strDom($tokenizer->save()) . "\n",
-            $test['document'] . "\n"
+            $test['document'] . "\n",
+            HTML5_TestData::strDom($tokenizer->save()) . "\n"
         );
     }
 }
