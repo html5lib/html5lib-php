@@ -28,7 +28,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 class HTML5_TreeConstructer {
     public $stack = array();
 
-    private $phase;
     private $mode;
     private $dom;
     private $foster_parent = null;
@@ -47,27 +46,30 @@ class HTML5_TreeConstructer {
     'option','p','param','plaintext','pre','script','select','spacer','style',
     'tbody','textarea','tfoot','thead','title','tr','ul','wbr');
 
-    // The different phases.
-    const INIT_PHASE = 0;
-    const ROOT_PHASE = 1;
-    const MAIN_PHASE = 2;
-    const END_PHASE  = 3;
-
-    // The different insertion modes for the main phase.
-    const BEFOR_HEAD = 0;
-    const IN_HEAD    = 1;
-    const AFTER_HEAD = 2;
-    const IN_BODY    = 3;
-    const IN_TABLE   = 4;
-    const IN_CAPTION = 5;
-    const IN_CGROUP  = 6;
-    const IN_TBODY   = 7;
-    const IN_ROW     = 8;
-    const IN_CELL    = 9;
-    const IN_SELECT  = 10;
-    const AFTER_BODY = 11;
-    const IN_FRAME   = 12;
-    const AFTR_FRAME = 13;
+    // Tree construction modes
+    const INITIAL           = 0;
+    const BEFORE_HTML       = 1;
+    const BEFORE_HEAD       = 2;
+    const IN_HEAD           = 3;
+    const IN_HEAD_NOSCRIPT  = 4;
+    const AFTER_HEAD        = 5;
+    const IN_BODY           = 6;
+    const IN_CDATA          = 7;
+    const IN_RCDATA         = 8;
+    const IN_TABLE          = 9;
+    const IN_CAPTION        = 10;
+    const IN_COLUMN_GROUP   = 11;
+    const IN_TABLE_BODY     = 12;
+    const IN_ROW            = 13;
+    const IN_CELL           = 14;
+    const IN_SELECT         = 15;
+    const IN_SELECT_IN_TABLE= 16;
+    const IN_FOREIGN_CONTENT= 17;
+    const AFTER_BODY        = 18;
+    const IN_FRAMESET       = 19;
+    const AFTER_FRAMESET    = 20;
+    const AFTER_AFTER_BODY  = 21;
+    const AFTER_AFTER_FRAMESET = 22;
 
     // The different types of elements.
     const SPECIAL    = 0;
@@ -78,8 +80,7 @@ class HTML5_TreeConstructer {
     const MARKER     = 0;
 
     public function __construct() {
-        $this->phase = self::INIT_PHASE;
-        $this->mode = self::BEFOR_HEAD;
+        $this->mode = self::INITIAL;
         $this->dom = new DOMDocument;
 
         $this->dom->encoding = 'UTF-8';
@@ -90,67 +91,57 @@ class HTML5_TreeConstructer {
 
     // Process tag tokens
     public function emitToken($token) {
-        switch($this->phase) {
-            case self::INIT_PHASE: return $this->initPhase($token); break;
-            case self::ROOT_PHASE: return $this->rootElementPhase($token); break;
-            case self::MAIN_PHASE: return $this->mainPhase($token); break;
-            case self::END_PHASE : return $this->trailingEndPhase($token); break;
+        // indenting is a little wonky, this can be changed later on
+        switch ($this->mode) {
+
+    case self::INITIAL:
+
+        /* A character token that is one of U+0009 CHARACTER TABULATION,
+         * U+000A LINE FEED (LF), U+000C FORM FEED (FF),  or U+0020 SPACE */
+        if ($token['type'] === HTML5_Tokenizer::CHARACTER &&
+        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+            /* Ignore the token. */
+        } elseif ($token['type'] === HTML5_Tokenizer::DOCTYPE) {
+            if (
+                $token['name'] !== 'html' || !empty($token['public']) ||
+                !empty($token['system']) || $token !== 'about:legacy-compat'
+            ) {
+                /* If the DOCTYPE token's name is not a case-sensitive match
+                 * for the string "html", or if the token's public identifier
+                 * is not missing, or if the token's system identifier is
+                 * neither missing nor a case-sensitive match for the string
+                 * "about:legacy-compat", then there is a parse error (this
+                 * is the DOCTYPE parse error). */
+                // DOCTYPE parse error
+            }
+            /* Append a DocumentType node to the Document node, with the name
+             * attribute set to the name given in the DOCTYPE token, or the
+             * empty string if the name was missing; the publicId attribute
+             * set to the public identifier given in the DOCTYPE token, or
+             * the empty string if the public identifier was missing; the
+             * systemId attribute set to the system identifier given in the
+             * DOCTYPE token, or the empty string if the system identifier
+             * was missing; and the other attributes specific to
+             * DocumentType objects set to null and empty lists as
+             * appropriate. Associate the DocumentType node with the
+             * Document object so that it is returned as the value of the
+             * doctype attribute of the Document object. */
+            $doctype = new DOMDocumentType($token['public'], $token['system'],
+                $token['name']);
+            $this->dom->appendChild($doctype);
+            // XXX: Implement quirks mode
+            $this->mode = self::BEFORE_HTML;
+        } else {
+            // parse error
+            // XXX: Implement quirks mode
+            /* Switch the insertion mode to "before html", then reprocess the 
+             * current token. */
+            $this->mode = self::BEFORE_HTML;
+            $this->emitToken($token);
         }
-    }
+        break;
 
-    private function initPhase($token) {
-        /* Initially, the tree construction stage must handle each token
-        emitted from the tokenisation stage as follows: */
-
-        /* A DOCTYPE token that is marked as being in error
-        A comment token
-        A start tag token
-        An end tag token
-        A character token that is not one of one of U+0009 CHARACTER TABULATION,
-            U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
-            or U+0020 SPACE
-        An end-of-file token */
-        if((isset($token['error']) && $token['error']) ||
-        $token['type'] === HTML5_Tokenizer::COMMENT ||
-        $token['type'] === HTML5_Tokenizer::STARTTAG ||
-        $token['type'] === HTML5_Tokenizer::ENDTAG ||
-        $token['type'] === HTML5_Tokenizer::EOF ||
-        ($token['type'] === HTML5_Tokenizer::CHARACTER && isset($token['data']) &&
-        !preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']))) {
-            /* This specification does not define how to handle this case. In
-            particular, user agents may ignore the entirety of this specification
-            altogether for such documents, and instead invoke special parse modes
-            with a greater emphasis on backwards compatibility. */
-
-            $this->phase = self::ROOT_PHASE;
-            return $this->rootElementPhase($token);
-
-        /* A DOCTYPE token marked as being correct */
-        } elseif(isset($token['error']) && !$token['error']) {
-            /* Append a DocumentType node to the Document  node, with the name
-            attribute set to the name given in the DOCTYPE token (which will be
-            "HTML"), and the other attributes specific to DocumentType objects
-            set to null, empty lists, or the empty string as appropriate. */
-            $doctype = new DOMDocumentType(null, null, 'HTML');
-
-            /* Then, switch to the root element phase of the tree construction
-            stage. */
-            $this->phase = self::ROOT_PHASE;
-
-        /* A character token that is one of one of U+0009 CHARACTER TABULATION,
-        U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
-        or U+0020 SPACE */
-        } elseif(isset($token['data']) && preg_match('/^[\t\n\x0b\x0c ]+$/',
-        $token['data'])) {
-            /* Append that character  to the Document node. */
-            $text = $this->dom->createTextNode($token['data']);
-            $this->dom->appendChild($text);
-        }
-    }
-
-    private function rootElementPhase($token) {
-        /* After the initial phase, as each token is emitted from the tokenisation
-        stage, it must be processed as described in this section. */
+    case self::BEFORE_HTML:
 
         /* A DOCTYPE token */
         if($token['type'] === HTML5_Tokenizer::DOCTYPE) {
@@ -168,93 +159,41 @@ class HTML5_TreeConstructer {
         or U+0020 SPACE */
         } elseif($token['type'] === HTML5_Tokenizer::CHARACTER &&
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
-            /* Append that character  to the Document node. */
-            $text = $this->dom->createTextNode($token['data']);
-            $this->dom->appendChild($text);
+            /* Ignore the token. */
 
-        /* A character token that is not one of U+0009 CHARACTER TABULATION,
-            U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED
-            (FF), or U+0020 SPACE
-        A start tag token
-        An end tag token
-        An end-of-file token */
-        } elseif(($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        !preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) ||
-        $token['type'] === HTML5_Tokenizer::STARTTAG ||
-        $token['type'] === HTML5_Tokenizer::ENDTAG ||
-        $token['type'] === HTML5_Tokenizer::EOF) {
+        /* A start tag whose tag name is "html" */
+        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] == 'html') {
             /* Create an HTMLElement node with the tag name html, in the HTML
-            namespace. Append it to the Document object. Switch to the main
-            phase and reprocess the current token. */
+            namespace. Append it to the Document object. Put this element in 
+            the stack of open elements.*/
             $html = $this->dom->createElement('html');
             $this->dom->appendChild($html);
             $this->stack[] = $html;
 
-            $this->phase = self::MAIN_PHASE;
-            return $this->mainPhase($token);
-        }
-    }
+            $this->mode = self::BEFORE_HEAD;
 
-    private function mainPhase($token) {
-        /* Tokens in the main phase must be handled as follows: */
-
-        /* A DOCTYPE token */
-        if($token['type'] === HTML5_Tokenizer::DOCTYPE) {
-            // Parse error. Ignore the token.
-
-        /* A start tag token with the tag name "html" */
-        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html') {
-            /* If this start tag token was not the first start tag token, then
-            it is a parse error. */
-
-            /* For each attribute on the token, check to see if the attribute
-            is already present on the top element of the stack of open elements.
-            If it is not, add the attribute and its corresponding value to that
-            element. */
-            foreach($token['attr'] as $attr) {
-                if(!$this->stack[0]->hasAttribute($attr['name'])) {
-                    $this->stack[0]->setAttribute($attr['name'], $attr['value']);
-                }
-            }
-
-        /* An end-of-file token */
-        } elseif($token['type'] === HTML5_Tokenizer::EOF) {
-            /* Generate implied end tags. */
-            $this->generateImpliedEndTags();
-
-        /* Anything else. */
         } else {
-            /* Depends on the insertion mode: */
-            switch($this->mode) {
-                case self::BEFOR_HEAD: return $this->beforeHead($token); break;
-                case self::IN_HEAD:    return $this->inHead($token); break;
-                case self::AFTER_HEAD: return $this->afterHead($token); break;
-                case self::IN_BODY:    return $this->inBody($token); break;
-                case self::IN_TABLE:   return $this->inTable($token); break;
-                case self::IN_CAPTION: return $this->inCaption($token); break;
-                case self::IN_CGROUP:  return $this->inColumnGroup($token); break;
-                case self::IN_TBODY:   return $this->inTableBody($token); break;
-                case self::IN_ROW:     return $this->inRow($token); break;
-                case self::IN_CELL:    return $this->inCell($token); break;
-                case self::IN_SELECT:  return $this->inSelect($token); break;
-                case self::AFTER_BODY: return $this->afterBody($token); break;
-                case self::IN_FRAME:   return $this->inFrameset($token); break;
-                case self::AFTR_FRAME: return $this->afterFrameset($token); break;
-                case self::END_PHASE:  return $this->trailingEndPhase($token); break;
-            }
-        }
-    }
+            /* Create an html element. Append it to the Document object. Put 
+             * this element in the stack of open elements. */
+            $html = $this->dom->createElement('html');
+            $this->dom->appendChild($html);
+            $this->stack[] = $html;
 
-    private function beforeHead($token) {
-        /* Handle the token as follows: */
+            /* Switch the insertion mode to "before head", then reprocess the 
+             * current token. */
+            $this->mode = self::BEFORE_HEAD;
+            $this->emitToken($token);
+        }
+        break;
+
+    case self::BEFORE_HEAD:
 
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
         if($token['type'] === HTML5_Tokenizer::CHARACTER &&
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
-            /* Append the character to the current node. */
-            $this->insertText($token['data']);
+            /* Ignore the token. */
 
         /* A comment token */
         } elseif($token['type'] === HTML5_Tokenizer::COMMENT) {
@@ -262,10 +201,20 @@ class HTML5_TreeConstructer {
             set to the data given in the comment token. */
             $this->insertComment($token['data']);
 
+        /* A DOCTYPE token */
+        } elseif($token['type'] === HTML5_Tokenizer::DOCTYPE) {
+            /* Parse error. Ignore the token */
+            // parse error
+
+        /* A start tag token with the tag name "html" */
+        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html') {
+            /* Process the token using the rules for the "in body"
+             * insertion mode. */
+            $this->processWithRulesFor($token, self::IN_BODY);
+
         /* A start tag token with the tag name "head" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'head') {
-            /* Create an element for the token, append the new element to the
-            current node and push it onto the stack of open elements. */
+            /* Insert an HTML element for the token. */
             $element = $this->insertElement($token);
 
             /* Set the head element pointer to this new element node. */
@@ -274,33 +223,43 @@ class HTML5_TreeConstructer {
             /* Change the insertion mode to "in head". */
             $this->mode = self::IN_HEAD;
 
-        /* A start tag token whose tag name is one of: "base", "link", "meta",
-        "script", "style", "title". Or an end tag with the tag name "html".
-        Or a character token that is not one of U+0009 CHARACTER TABULATION,
-        U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
-        or U+0020 SPACE. Or any other start tag token */
-        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG ||
-        ($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] === 'html') ||
-        ($token['type'] === HTML5_Tokenizer::CHARACTER && !preg_match('/^[\t\n\x0b\x0c ]$/',
-        $token['data']))) {
-            /* Act as if a start tag token with the tag name "head" and no
-            attributes had been seen, then reprocess the current token. */
-            $this->beforeHead(array(
+        /* An end tag whose tag name is one of: "head", "body", "html", "br" */
+        } elseif(
+            $token['type'] === HTML5_Tokenizer::ENDTAG && (
+                $token['name'] === 'head' || $token['name'] === 'body' ||
+                $token['name'] === 'html' || $token['name'] === 'br'
+        )) {
+            /* Act as if a start tag token with the tag name "head" and no 
+             * attributes had been seen, then reprocess the current token. */
+            $this->emitToken(array(
                 'name' => 'head',
-                'type' => HTML5_Tokenizer::STARTTAG,
+                'type' => HTML5_Tokenizer::STARTTAG
                 'attr' => array()
             ));
-
-            return $this->inHead($token);
+            $this->emitToken($token);
 
         /* Any other end tag */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG) {
             /* Parse error. Ignore the token. */
-        }
-    }
 
-    private function inHead($token) {
-        /* Handle the token as follows: */
+        } else {
+            /* Act as if a start tag token with the tag name "head" and no 
+             * attributes had been seen, then reprocess the current token.
+             * Note: This will result in an empty head element being 
+             * generated, with the current token being reprocessed in the 
+             * "after head" insertion mode. */
+            $this->emitToken(array(
+                'name' => 'head',
+                'type' => HTML5_Tokenizer::STARTTAG
+                'attr' => array()
+            ));
+            $this->emitToken($token);
+        }
+        break;
+
+    case self::IN_HEAD:
+
+        // XXX: ANYTHING AFTER THIS POINT HAS NOT BEEN REVIEWED/CONVERTED
 
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
@@ -2736,7 +2695,72 @@ class HTML5_TreeConstructer {
         }
     }
 
+    private function processWithRulesFor($token, $mode) {
+        /* "using the rules for the m insertion mode", where m is one of these 
+         * modes, the user agent must use the rules described under the m  
+         * insertion mode's section, but must leave the insertion mode 
+         * unchanged unless the rules in m themselves switch the insertion mode  
+         * to a new value. */
+        $old = $this->mode;
+        $this->mode = $mode;
+        $this->emitToken($token);
+        if ($this->mode === $mode) $this->mode = $old;
+    }
+
     public function save() {
         return $this->dom;
+    }
+}
+
+if (0) {
+class F {
+    private function mainPhase($token) {
+        /* Tokens in the main phase must be handled as follows: */
+
+        /* A DOCTYPE token */
+        if($token['type'] === HTML5_Tokenizer::DOCTYPE) {
+            // Parse error. Ignore the token.
+
+        /* A start tag token with the tag name "html" */
+        } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html') {
+            /* If this start tag token was not the first start tag token, then
+            it is a parse error. */
+
+            /* For each attribute on the token, check to see if the attribute
+            is already present on the top element of the stack of open elements.
+            If it is not, add the attribute and its corresponding value to that
+            element. */
+            foreach($token['attr'] as $attr) {
+                if(!$this->stack[0]->hasAttribute($attr['name'])) {
+                    $this->stack[0]->setAttribute($attr['name'], $attr['value']);
+                }
+            }
+
+        /* An end-of-file token */
+        } elseif($token['type'] === HTML5_Tokenizer::EOF) {
+            /* Generate implied end tags. */
+            $this->generateImpliedEndTags();
+
+        /* Anything else. */
+        } else {
+            /* Depends on the insertion mode: */
+            switch($this->mode) {
+                case self::BEFOR_HEAD: return $this->beforeHead($token); break;
+                case self::IN_HEAD:    return $this->inHead($token); break;
+                case self::AFTER_HEAD: return $this->afterHead($token); break;
+                case self::IN_BODY:    return $this->inBody($token); break;
+                case self::IN_TABLE:   return $this->inTable($token); break;
+                case self::IN_CAPTION: return $this->inCaption($token); break;
+                case self::IN_CGROUP:  return $this->inColumnGroup($token); break;
+                case self::IN_TBODY:   return $this->inTableBody($token); break;
+                case self::IN_ROW:     return $this->inRow($token); break;
+                case self::IN_CELL:    return $this->inCell($token); break;
+                case self::IN_SELECT:  return $this->inSelect($token); break;
+                case self::AFTER_BODY: return $this->afterBody($token); break;
+                case self::IN_FRAME:   return $this->inFrameset($token); break;
+                case self::AFTR_FRAME: return $this->afterFrameset($token); break;
+                case self::END_PHASE:  return $this->trailingEndPhase($token); break;
+            }
+        }
     }
 }
