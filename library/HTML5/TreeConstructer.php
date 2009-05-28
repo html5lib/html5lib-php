@@ -41,7 +41,9 @@ class HTML5_TreeConstructer {
     private $mode;
     private $original_mode;
     private $dom;
-    private $foster_parent = null;
+    // Whether or not normal insertion of nodes should actually foster
+    // parent (used in one case in spec)
+    private $foster_parent = false;
     private $a_formatting  = array();
 
     private $head_pointer = null;
@@ -1584,8 +1586,7 @@ class HTML5_TreeConstructer {
                             $last_node->parentNode->removeChild($last_node);
                         }
                         if (in_array($common_ancestor->tagName, array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
-                            $this->foster_parent->appendChild($last_node);
-                            // XXX: mark table tainted
+                            $this->fosterParent($last_node);
                         /* Otherwise, append whatever last node  ended up being
                          * in the previous step to the common ancestor node,
                          * first removing it from its previous parent node if
@@ -1893,43 +1894,15 @@ class HTML5_TreeConstructer {
             /* Parse error. Process the token as if the insertion mode was "in
             body", with the following exception: */
 
-            // XXX: This is probably wrong
             /* If the current node is a table, tbody, tfoot, thead, or tr
             element, then, whenever a node would be inserted into the current
             node, it must instead be inserted into the foster parent element. */
             if(in_array(end($this->stack)->nodeName,
             array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
-                /* The foster parent element is the parent element of the last
-                table element in the stack of open elements, if there is a
-                table element and it has such a parent element. If there is no
-                table element in the stack of open elements (innerHTML case),
-                then the foster parent element is the first element in the
-                stack of open elements (the html  element). Otherwise, if there
-                is a table element in the stack of open elements, but the last
-                table element in the stack of open elements has no parent, or
-                its parent node is not an element, then the foster parent
-                element is the element before the last table element in the
-                stack of open elements. */
-                for($n = count($this->stack) - 1; $n >= 0; $n--) {
-                    if($this->stack[$n]->nodeName === 'table') {
-                        $table = $this->stack[$n];
-                        break;
-                    }
-                }
-
-                if(isset($table) && $table->parentNode !== null) {
-                    $this->foster_parent = $table->parentNode;
-
-                } elseif(!isset($table)) {
-                    $this->foster_parent = $this->stack[0];
-
-                } elseif(isset($table) && ($table->parentNode === null ||
-                $table->parentNode->nodeType !== XML_ELEMENT_NODE)) {
-                    $this->foster_parent = $this->stack[$n - 1];
-                }
+                $this->foster_parent = true;
+                $this->processWithRulesFor($token, self::IN_BODY);
+                $this->foster_parent = false;
             }
-
-            $this->processWithRulesFor($token, self::IN_BODY);
         }
     break;
 
@@ -2764,9 +2737,6 @@ class HTML5_TreeConstructer {
                 if ($data === false) return;
             }
         }
-        if (!is_string($data)) {
-            debug_print_backtrace();
-        }
         $text = $this->dom->createTextNode($data);
         $this->appendToRealParent($text);
     }
@@ -2777,32 +2747,10 @@ class HTML5_TreeConstructer {
     }
 
     private function appendToRealParent($node) {
-        if($this->foster_parent === null) {
-            $parent = end($this->stack);
-            $this->appendChild($parent, $node);
-
-        } elseif($this->foster_parent !== null) {
-            /* If the foster parent element is the parent element of the
-            last table element in the stack of open elements, then the new
-            node must be inserted immediately before the last table element
-            in the stack of open elements in the foster parent element;
-            otherwise, the new node must be appended to the foster parent
-            element. */
-            for($n = count($this->stack) - 1; $n >= 0; $n--) {
-                if($this->stack[$n]->nodeName === 'table' &&
-                $this->stack[$n]->parentNode !== null) {
-                    $table = $this->stack[$n];
-                    break;
-                }
-            }
-
-            if(isset($table) && $this->foster_parent->isSameNode($table->parentNode)) {
-                $this->insertBefore($this->foster_parent, $node, $table);
-            } else {
-                $this->appendChild($this->foster_parent, $node);
-            }
-
-            $this->foster_parent = null;
+        if(!$this->foster_parent) {
+            $this->appendChild(end($this->stack), $node);
+        } else {
+            $this->fosterParent($node);
         }
     }
 
@@ -3159,6 +3107,72 @@ class HTML5_TreeConstructer {
         }
         return $ret;
     }
+
+    private function getCurrentTable() {
+        /* The current table is the last table  element in the stack of open 
+         * elements, if there is one. If there is no table element in the stack 
+         * of open elements (fragment case), then the current table is the 
+         * first element in the stack of open elements (the html element). */
+        for ($i = count($this->stack) - 1; $i >= 0; $i--) {
+            if ($this->stack[$i]->tagName === 'table') {
+                return $this->stack[$i];
+            }
+        }
+        return $this->stack[0];
+    }
+
+    private function getFosterParent() {
+        /* The foster parent element is the parent element of the last
+        table element in the stack of open elements, if there is a
+        table element and it has such a parent element. If there is no
+        table element in the stack of open elements (innerHTML case),
+        then the foster parent element is the first element in the
+        stack of open elements (the html  element). Otherwise, if there
+        is a table element in the stack of open elements, but the last
+        table element in the stack of open elements has no parent, or
+        its parent node is not an element, then the foster parent
+        element is the element before the last table element in the
+        stack of open elements. */
+        for($n = count($this->stack) - 1; $n >= 0; $n--) {
+            if($this->stack[$n]->nodeName === 'table') {
+                $table = $this->stack[$n];
+                break;
+            }
+        }
+
+        if(isset($table) && $table->parentNode !== null) {
+            return $table->parentNode;
+
+        } elseif(!isset($table)) {
+            return $this->stack[0];
+
+        } elseif(isset($table) && ($table->parentNode === null ||
+        $table->parentNode->nodeType !== XML_ELEMENT_NODE)) {
+            return $this->stack[$n - 1];
+        }
+    }
+
+    public function fosterParent($node) {
+        $foster_parent = $this->getFosterParent();
+        $table = $this->getCurrentTable(); // almost equivalent to last table element, except it can be html
+        /* When a node node is to be foster parented, the node node  must be 
+         * inserted into the foster parent element, and the current table must 
+         * be marked as tainted. (Once the current table has been tainted, 
+         * whitespace characters are inserted into the foster parent element 
+         * instead of the current node.) */
+        $table->tainted = true;
+        /* If the foster parent element is the parent element of the last table 
+         * element in the stack of open elements, then node must be inserted 
+         * immediately before the last table element in the stack of open 
+         * elements in the foster parent element; otherwise, node must be 
+         * appended to the foster parent element. */
+        if ($table->tagName === 'table' && $table->parentNode->isSameNode($foster_parent)) {
+            $this->insertBefore($foster_parent, $node, $table);
+        } else {
+            $this->appendChild($foster_parent, $node);
+        }
+    }
+
 
     public function save() {
         return $this->dom;
