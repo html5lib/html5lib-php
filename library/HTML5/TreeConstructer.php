@@ -26,10 +26,10 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
-// Tags for FIX ME!!!:
+// Tags for FIX ME!!!: (in order of priority)
 //      XXX - should be fixed NAO!
-//      XERROR - with regards to parse errors
 //      XFOREIGN - with regards to SVG and MathML
+//      XERROR - with regards to parse errors
 //      XQUIRKS - with regards to quirks mode
 //      XENCODING - with regards to encoding
 //      XSCRIPT - with regards to scripting mode
@@ -616,8 +616,7 @@ class HTML5_TreeConstructer {
                      * not a body element, or, if the stack of open elements
                      * has only one node on it, then ignore the token.
                      * (fragment case) */
-                    if(count($this->stack) === 1 || $this->stack[1]->nodeName
-                        !== 'body') {
+                    if(count($this->stack) === 1 || $this->stack[1]->tagName !== 'body') {
                         $this->ignored = true;
                         // Ignore
                     } elseif (!$this->flag_frameset_ok) {
@@ -627,7 +626,9 @@ class HTML5_TreeConstructer {
                         // XSKETCHY
                         /* 1. Remove the second element on the stack of open 
                          * elements from its parent node, if it has one.  */
-                        $this->stack[1]->parentNode->removeChild($this->stack[1]);
+                        if($this->stack[1]->parentNode) {
+                            $this->stack[1]->parentNode->removeChild($this->stack[1]);
+                        }
 
                         /* 2. Pop all the nodes from the bottom of the stack of 
                          * open elements, from the current node up to the root 
@@ -1755,7 +1756,7 @@ class HTML5_TreeConstructer {
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']) &&
         /* If the current table is tainted, then act as described in
          * the "anything else" entry below. */
-        // XSKETCHY: hsivonen has a test that fails due to this line
+        // Note: hsivonen has a test that fails due to this line
         // because he wants to convince Hixie not to do taint
         !$this->currentTableIsTainted()) {
             /* Append the character to the current node. */
@@ -1928,7 +1929,7 @@ class HTML5_TreeConstructer {
 
                 /* Now, if the current node is not a caption element, then this
                 is a parse error. */
-                // XXX: implement
+                // XERROR: implement
 
                 /* Pop elements from this stack until a caption element has
                 been popped from the stack. */
@@ -2003,7 +2004,7 @@ class HTML5_TreeConstructer {
             node off the stack of open elements. */
             $this->insertElement($token);
             array_pop($this->stack);
-            // XXX: Acknowledge the token's self-closing flag, if it is set.
+            // XERROR: Acknowledge the token's self-closing flag, if it is set.
 
         /* An end tag whose tag name is "colgroup" */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
@@ -2238,7 +2239,7 @@ class HTML5_TreeConstructer {
 
                 /* Now, if the current node is not an element with the same tag
                 name as the token, then this is a parse error. */
-                // XXX: Implement parse error code
+                // XERROR: Implement parse error code
 
                 /* Pop elements from this stack until an element with the same
                 tag name as the token has been popped from the stack. */
@@ -2449,7 +2450,7 @@ class HTML5_TreeConstructer {
             $this->processWithRulesFor($token, self::IN_HEAD);
 
         } elseif($token['type'] === HTML5_Tokenizer::EOF) {
-            // XXX: If the current node is not the root html element, then this is a parse error.
+            // XERROR: If the current node is not the root html element, then this is a parse error.
             /* Stop parsing */
 
         /* Anything else */
@@ -2488,8 +2489,7 @@ class HTML5_TreeConstructer {
                     'type' => HTML5_Tokenizer::ENDTAG
                 ));
 
-                // XXX
-                //$this->emitToken($token);
+                $this->emitToken($token);
             } else {
                 $this->ignored = true;
             }
@@ -2499,7 +2499,7 @@ class HTML5_TreeConstructer {
     break;
 
     case self::IN_FOREIGN_CONTENT:
-        // XXX: not implemented
+        // XFOREIGN: not implemented
     break;
 
     case self::AFTER_BODY:
@@ -2534,7 +2534,7 @@ class HTML5_TreeConstructer {
              *     fragment parsing algorithm, this is a parse error; ignore
              *     the token. (fragment case) */
             $this->ignored = true;
-            // XXX: implement this
+            // XERROR: implement this
 
             $this->mode = self::AFTER_AFTER_BODY;
 
@@ -2605,7 +2605,7 @@ class HTML5_TreeConstructer {
             /* Immediately pop the current node off the stack of open elements. */
             array_pop($this->stack);
 
-            // XXX: Acknowledge the token's self-closing flag, if it is set.
+            // XERROR: Acknowledge the token's self-closing flag, if it is set.
 
         /* A start tag with the tag name "noframes" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG &&
@@ -2614,7 +2614,7 @@ class HTML5_TreeConstructer {
             $this->processwithRulesFor($token, self::IN_HEAD);
 
         } elseif($token['type'] === HTML5_Tokenizer::EOF) {
-            // XXX: If the current node is not the root html element, then this is a parse error.
+            // XERROR: If the current node is not the root html element, then this is a parse error.
             /* Stop parsing */
         /* Anything else */
         } else {
