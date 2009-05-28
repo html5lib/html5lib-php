@@ -29,11 +29,11 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Tags for FIX ME!!!: (in order of priority)
 //      XXX - should be fixed NAO!
 //      XFOREIGN - with regards to SVG and MathML
-//      XERROR - with regards to parse errors
 //      XQUIRKS - with regards to quirks mode
-//      XENCODING - with regards to encoding
+//      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
 //      XSKETCHY - we implemented the section, but no new test-cases passed
+//      XENCODING - with regards to encoding (for reparsing tests)
 
 class HTML5_TreeConstructer {
     public $stack = array();

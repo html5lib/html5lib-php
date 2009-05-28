@@ -6,7 +6,7 @@ SimpleTest::ignore('HTML5_TreeBuilderHarness');
 class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
 {
     public function assertIdentical($expect, $actual, $input) {
-        parent::assertIdentical($expect, $actual, "Identical expectation failed\nInput:\n$input\n\nExpected:\n$expect\n\nActual:\n$actual");
+        parent::assertIdentical($expect, $actual, "Identical expectation failed\nInput:\n$input\n\nExpected:\n$expect\n\nActual:\n$actual\n");
     }
     public function invoke($test) {
         // this is totally the wrong interface to use, but
