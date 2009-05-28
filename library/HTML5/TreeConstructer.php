@@ -1152,7 +1152,7 @@ class HTML5_TreeConstructer {
                     return $this->insertCDATAElement($token);
 
                 case 'noembed': case 'noscript':
-                    // XXX: should check scripting flag
+                    // XSCRIPT: should check scripting flag
                     return $this->insertCDATAElement($token);
                 break;
 
@@ -1258,7 +1258,7 @@ class HTML5_TreeConstructer {
                      * the body element, or the html element, then this is a
                      * parse error. */
                     } else {
-                        // XXX: implement this check for parse error
+                        // XERROR: implement this check for parse error
                     }
 
                     /* Change the insertion mode to "after body". */
@@ -1293,7 +1293,7 @@ class HTML5_TreeConstructer {
                         the same tag name as that of the token, then this
                         is a parse error. */
                         // w/e
-                        // XXX: implement parse error logic
+                        // XERROR: implement parse error logic
 
                         /* If the stack of open elements has an element in
                         scope with the same tag name as that of the token,
@@ -1313,30 +1313,26 @@ class HTML5_TreeConstructer {
 
                 /* An end tag whose tag name is "form" */
                 case 'form':
-                    // XXX: This is wrong
-                    /* If the stack of open elements has an element in scope
-                    with the same tag name as that of the token, then generate
-                    implied    end tags. */
-                    if($this->elementInScope($token['name'])) {
-                        $this->generateImpliedEndTags();
-
-                    }
-
-                    if(end($this->stack)->nodeName !== $token['name']) {
-                        /* Now, if the current node is not an element with the
-                        same tag name as that of the token, then this is a parse
-                        error. */
-                        // w/e
-
-                    } else {
-                        /* Otherwise, if the current node is an element with
-                        the same tag name as that of the token pop that element
-                        from the stack. */
-                        array_pop($this->stack);
-                    }
-
-                    /* In any case, set the form element pointer to null. */
+                    /* Let node be the element that the form element pointer is set to. */
+                    $node = $this->form_pointer;
+                    /* Set the form element pointer  to null. */
                     $this->form_pointer = null;
+                    /* If node is null or the stack of open elements does not 
+                        * have node in scope, then this is a parse error; ignore the token. */
+                    if ($node === null || !in_array($node, $this->stack)) {
+                        // parse error
+                        $this->ignored = true;
+                    } else {
+                        /* 1. Generate implied end tags. */
+                        $this->generateImpliedEndTags();
+                        /* 2. If the current node is not node, then this is a parse error.  */
+                        if (end($this->stack) !== $node) {
+                            // parse error
+                        }
+                        /* 3. Remove node from the stack of open elements. */
+                        array_splice($this->stack, array_search($node, $this->stack), 1);
+                    }
+
                 break;
 
                 /* An end tag whose tag name is "p" */
@@ -1350,7 +1346,7 @@ class HTML5_TreeConstructer {
 
                         /* If the current node is not a p element, then this is
                         a parse error. */
-                        // XXX: implement
+                        // XERROR: implement
 
                         /* Pop elements from the stack of open elements  until
                          * an element with the same tag name as the token has
@@ -1376,7 +1372,7 @@ class HTML5_TreeConstructer {
 
                         /* If the current node is not an element with the same
                         tag name as the token, then this is a parse error. */
-                        // XXX: implement parse error
+                        // XERROR: implement parse error
 
                         /* Pop elements from the stack of open elements  until
                          * an element with the same tag name as the token has
@@ -1403,7 +1399,7 @@ class HTML5_TreeConstructer {
 
                         /* Now, if the current node is not an element with the same
                         tag name as that of the token, then this is a parse error. */
-                        // XXX: implement parse error
+                        // XERROR: implement parse error
 
                         /* If the stack of open elements has in scope an element
                         whose tag name is one of "h1", "h2", "h3", "h4", "h5", or
@@ -1422,7 +1418,7 @@ class HTML5_TreeConstructer {
                 case 'a': case 'b': case 'big': case 'em': case 'font':
                 case 'i': case 'nobr': case 's': case 'small': case 'strike':
                 case 'strong': case 'tt': case 'u':
-                    // XXX: generally speaking this needs parse error logic
+                    // XERROR: generally speaking this needs parse error logic
                     /* 1. Let the formatting element be the last element in
                     the list of active formatting elements that:
                         * is between the end of the list and the last scope
@@ -1467,7 +1463,7 @@ class HTML5_TreeConstructer {
                          * element is not the current node, this is a parse
                          * error. In any case, proceed with the algorithm as
                          * written in the following steps. */
-                        // XXX: implement me
+                        // XERROR: implement me
 
                         /* 2. Let the furthest block be the topmost node in the
                         stack of open elements that is lower in the stack
@@ -1558,7 +1554,7 @@ class HTML5_TreeConstructer {
                              * elements with an entry for the new element, and
                              * let node be the new element. */
                             // we don't know what the token is anymore
-                            $clone = $node->cloneNode(); // XXX: make sure it has no children!
+                            $clone = $node->cloneNode();
                             $a_pos = array_search($node, $this->a_formatting, true);
                             $s_pos = array_search($node, $this->stack, true);
                             $this->a_formatting[$a_pos] = $clone;

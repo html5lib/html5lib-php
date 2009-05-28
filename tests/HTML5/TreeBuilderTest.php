@@ -5,8 +5,8 @@ require_once dirname(__FILE__) . '/../autorun.php';
 SimpleTest::ignore('HTML5_TreeBuilderHarness');
 class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
 {
-    public function assertIdentical($expect, $actual) {
-        parent::assertIdentical($expect, $actual, "Identical expectation failed\nExpected:\n$expect\n\nActual:\n$actual");
+    public function assertIdentical($expect, $actual, $input) {
+        parent::assertIdentical($expect, $actual, "Identical expectation failed\nInput:\n$input\n\nExpected:\n$expect\n\nActual:\n$actual");
     }
     public function invoke($test) {
         // this is totally the wrong interface to use, but
@@ -16,8 +16,9 @@ class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
         $tokenizer->parse();
         $GLOBALS['TIME'] += get_microtime();
         $this->assertIdentical(
-            $test['document'] . "\n",
-            HTML5_TestData::strDom($tokenizer->save()) . "\n"
+            $test['document'],
+            HTML5_TestData::strDom($tokenizer->save()),
+            $test['data']
         );
     }
 }
