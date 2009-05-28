@@ -1755,7 +1755,8 @@ class HTML5_TreeConstructer {
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']) &&
         /* If the current table is tainted, then act as described in
          * the "anything else" entry below. */
-        // XSKETCHY: shouldn't this work?
+        // XSKETCHY: hsivonen has a test that fails due to this line
+        // because he wants to convince Hixie not to do taint
         !$this->currentTableIsTainted()) {
             /* Append the character to the current node. */
             $this->insertText($token['data']);
@@ -1873,12 +1874,14 @@ class HTML5_TreeConstructer {
         ($token['name'] === 'style' || $token['name'] === 'script')) {
             $this->processWithRulesFor($token, self::IN_HEAD);
 
-        } elseif ($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'input') {
-            /* If the token does not have an attribute with the name "type", or
-             * if it does, but that attribute's value is not an ASCII
-             * case-insensitive match for the string "hidden", then: act as
-             * described in the "anything else" entry below. */
-            // XXX: implement this
+        } elseif ($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'input' &&
+        // assignment is intentional
+        /* If the token does not have an attribute with the name "type", or
+         * if it does, but that attribute's value is not an ASCII
+         * case-insensitive match for the string "hidden", then: act as
+         * described in the "anything else" entry below. */
+        ($type = $this->getAttr($token, 'type')) && strtolower($type) === 'hidden') {
+            // I.e., if its an input with the type attribute == 'hidden'
             /* Otherwise */
             // parse error
             $this->insertElement($token);
@@ -3102,12 +3105,13 @@ class HTML5_TreeConstructer {
         return HTML5_Tokenizer::RCDATA;
     }
 
-    private function getAttr($key) {
+    private function getAttr($token, $key) {
         if (!isset($token['attr'])) return false;
         $ret = false;
         foreach ($token['attr'] as $keypair) {
-            if ($keypair['key'] === $key) $ret = $keypair['value'];
+            if ($keypair['name'] === $key) $ret = $keypair['value'];
         }
+        var_dump($ret);
         return $ret;
     }
 
