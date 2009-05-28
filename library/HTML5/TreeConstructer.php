@@ -932,7 +932,7 @@ class HTML5_TreeConstructer {
 
                 /* A start tag whose tag name is "table" */
                 case 'table':
-                    // XXX: If NOT in quirks mode
+                    // XQUIRKS: If NOT in quirks mode
                     /* If the stack of open elements has a p element in scope,
                     then act as if an end tag with the tag name p had been seen. */
                     if($this->elementInScope('p')) {
@@ -1218,11 +1218,11 @@ class HTML5_TreeConstructer {
                 // spec diversion
 
                 case 'math':
-                    // XXX: not implemented
+                    // XFOREIGN: not implemented
                 break;
 
                 case 'svg':
-                    // XXX: not implemented
+                    // XFOREIGN: not implemented
                 break;
 
                 case 'caption': case 'col': case 'colgroup': case 'frame': case 'head':
@@ -1649,7 +1649,7 @@ class HTML5_TreeConstructer {
 
                         /* Now, if the current node is not an element with the same
                         tag name as the token, then this is a parse error. */
-                        // XXX: implement logic
+                        // XERROR: implement logic
 
                         /* Pop elements from the stack of open elements  until
                          * an element with the same tag name as the token has
@@ -1696,7 +1696,7 @@ class HTML5_TreeConstructer {
                             /* If the tag name of the end tag token does not
                             match the tag name of the current node, this is a
                             parse error. */
-                            // XXX: implement this
+                            // XERROR: implement this
 
                             /* Pop all the nodes from the current node up to
                             node, including node, then stop these steps. */
@@ -1752,10 +1752,11 @@ class HTML5_TreeConstructer {
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
         if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
-            /* If the current table is tainted, then act as described in
-             * the "anything else" entry below. */
-            // XXX: Not clear how to transfer this information
+        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']) &&
+        /* If the current table is tainted, then act as described in
+         * the "anything else" entry below. */
+        // XSKETCHY: shouldn't this work?
+        !$this->currentTableIsTainted()) {
             /* Append the character to the current node. */
             $this->insertText($token['data']);
 
@@ -3173,6 +3174,10 @@ class HTML5_TreeConstructer {
         } else {
             $this->appendChild($foster_parent, $node);
         }
+    }
+
+    public function currentTableIsTainted() {
+        return !empty($this->getCurrentTable()->tainted);
     }
 
 
