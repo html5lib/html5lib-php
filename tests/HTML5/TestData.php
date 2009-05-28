@@ -66,6 +66,7 @@ class HTML5_TestData
      * Converts a DOMDocument into string form as seen in test cases.
      */
     public static function strDom($dom, $prefix = '| ') {
+        // XXX: Doesn't handle svg and math correctly
         $ret = array();
         $indent = 2;
         $level  = -1; // since DOMDocument doesn't get rendered

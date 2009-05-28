@@ -49,6 +49,7 @@ class HTML5_TreeConstructer {
     private $form_pointer = null;
 
     private $flag_frameset_ok = true;
+    private $ignored = false;
 
     private $scoping = array('button','caption','html','marquee','object','table','td','th');
     private $formatting = array('a','b','big','em','font','i','nobr','s','small','strike','strong','tt','u');
@@ -104,6 +105,7 @@ class HTML5_TreeConstructer {
 
     // Process tag tokens
     public function emitToken($token, $mode = null) {
+        $this->ignored = false;
         // indenting is a little wonky, this can be changed later on
         if ($mode === null) $mode = $this->mode;
         switch ($mode) {
@@ -115,6 +117,7 @@ class HTML5_TreeConstructer {
         if ($token['type'] === HTML5_Tokenizer::CHARACTER &&
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
             /* Ignore the token. */
+            $this->ignored = true;
         } elseif ($token['type'] === HTML5_Tokenizer::DOCTYPE) {
             if (
                 $token['name'] !== 'html' || !empty($token['public']) ||
@@ -162,6 +165,7 @@ class HTML5_TreeConstructer {
         /* A DOCTYPE token */
         if($token['type'] === HTML5_Tokenizer::DOCTYPE) {
             // Parse error. Ignore the token.
+            $this->ignored = true;
 
         /* A comment token */
         } elseif($token['type'] === HTML5_Tokenizer::COMMENT) {
@@ -176,6 +180,7 @@ class HTML5_TreeConstructer {
         } elseif($token['type'] === HTML5_Tokenizer::CHARACTER &&
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
             /* Ignore the token. */
+            $this->ignored = true;
 
         /* A start tag whose tag name is "html" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] == 'html') {
@@ -210,6 +215,7 @@ class HTML5_TreeConstructer {
         if($token['type'] === HTML5_Tokenizer::CHARACTER &&
         preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
             /* Ignore the token. */
+            $this->ignored = true;
 
         /* A comment token */
         } elseif($token['type'] === HTML5_Tokenizer::COMMENT) {
@@ -220,6 +226,7 @@ class HTML5_TreeConstructer {
         /* A DOCTYPE token */
         } elseif($token['type'] === HTML5_Tokenizer::DOCTYPE) {
             /* Parse error. Ignore the token */
+            $this->ignored = true;
             // parse error
 
         /* A start tag token with the tag name "html" */
@@ -257,6 +264,7 @@ class HTML5_TreeConstructer {
         /* Any other end tag */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG) {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
 
         } else {
             /* Act as if a start tag token with the tag name "head" and no
@@ -292,6 +300,7 @@ class HTML5_TreeConstructer {
         /* A DOCTYPE token */
         } elseif($token['type'] === HTML5_Tokenizer::DOCTYPE) {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
             // parse error
 
         /* A start tag whose tag name is "html" */
@@ -367,6 +376,7 @@ class HTML5_TreeConstructer {
         } elseif(($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'head') ||
         ($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] !== 'html')) {
             // Parse error. Ignore the token.
+            $this->ignored = true;
 
         /* Anything else */
         } else {
@@ -549,6 +559,7 @@ class HTML5_TreeConstructer {
                     elements has only one node on it, then ignore the token.
                     (fragment case) */
                     if(count($this->stack) === 1 || $this->stack[1]->nodeName !== 'body') {
+                        $this->ignored = true;
                         // Ignore
 
                     /* Otherwise, for each attribute on the token, check to see
@@ -573,8 +584,10 @@ class HTML5_TreeConstructer {
                      * (fragment case) */
                     if(count($this->stack) === 1 || $this->stack[1]->nodeName
                         !== 'body') {
+                        $this->ignored = true;
                         // Ignore
                     } elseif (!$this->flag_frameset_ok) {
+                        $this->ignored = true;
                         // Ignore
                     } else {
                         // XXX: Not implemented
@@ -651,6 +664,7 @@ class HTML5_TreeConstructer {
                     /* If the form element pointer is not null, ignore the
                     token with a parse error. */
                     if($this->form_pointer !== null) {
+                        $this->ignored = true;
                         // Ignore.
 
                     /* Otherwise: */
@@ -1020,7 +1034,6 @@ class HTML5_TreeConstructer {
                                 $keypair['name'] === 'prompt') continue;
                             $attr[] = $keypair;
                         }
-                        // XXX: remove attributes
                         $attr[] = array('name' => 'name', 'value' => 'isindex');
 
                         $this->emitToken(array(
@@ -1056,6 +1069,8 @@ class HTML5_TreeConstructer {
                             'name' => 'form',
                             'type' => HTML5_Tokenizer::ENDTAG
                         ));
+                    } else {
+                        $this->ignored = true;
                     }
                 break;
 
@@ -1188,7 +1203,7 @@ class HTML5_TreeConstructer {
                     not a body element, this is a parse error. Ignore the token.
                     (innerHTML case) */
                     if(count($this->stack) < 2 || $this->stack[1]->nodeName !== 'body') {
-                        // Ignore.
+                        $this->ignored = true;
 
                     /* Otherwise, if there is a node in the stack of open
                      * elements that is not either a dd element, a dt
@@ -1215,9 +1230,8 @@ class HTML5_TreeConstructer {
                         'name' => 'body',
                         'type' => HTML5_Tokenizer::ENDTAG
                     ));
-                    // XXX: Unclear how to check if a token is ignored or not
 
-                    //return $this->emitToken($token);
+                    if (!$this->ignored) return $this->emitToken($token);
                 break;
 
                 case 'address': case 'article': case 'aside': case 'blockquote':
@@ -1391,6 +1405,7 @@ class HTML5_TreeConstructer {
                         these steps. The token is ignored. */
                         if(!isset($formatting_element) || ($in_stack &&
                         !$this->elementInScope($token['name']))) {
+                            $this->ignored = true;
                             break;
 
                         /* Otherwise, if there is such a node, but that node
@@ -1656,6 +1671,7 @@ class HTML5_TreeConstructer {
                                 category nor the phrasing category, then this is a
                                 parse error. Stop this algorithm. The end tag token
                                 is ignored. */
+                                $this->ignored = true;
                                 // parse error
                             }
                         }
@@ -1783,7 +1799,7 @@ class HTML5_TreeConstructer {
                 'type' => HTML5_Tokenizer::ENDTAG
             ));
 
-            //return $this->emitToken($token);
+            if (!$this->ignored) return $this->emitToken($token);
 
         /* An end tag whose tag name is "table" */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
@@ -1792,7 +1808,7 @@ class HTML5_TreeConstructer {
             scope with the same tag name as the token, this is a parse error.
             Ignore the token. (fragment case) */
             if(!$this->elementInScope($token['name'], true)) {
-                return false;
+                $this->ignored = true;
 
             /* Otherwise: */
             } else {
@@ -1924,8 +1940,7 @@ class HTML5_TreeConstructer {
                 'type' => HTML5_Tokenizer::ENDTAG
             ));
 
-            // XXX: Not sure how to check for this
-            //return $this->emitToken($token);
+            if (!$this->ignored) return $this->emitToken($token);
 
         /* An end tag whose tag name is one of: "body", "col", "colgroup",
         "html", "tbody", "td", "tfoot", "th", "thead", "tr" */
@@ -1933,6 +1948,7 @@ class HTML5_TreeConstructer {
         array('body', 'col', 'colgroup', 'html', 'tbody', 'tfoot', 'th',
         'thead', 'tr'))) {
             // Parse error. Ignore the token.
+            $this->ignored = true;
 
         /* Anything else */
         } else {
@@ -1976,7 +1992,7 @@ class HTML5_TreeConstructer {
             /* If the current node is the root html element, then this is a
             parse error, ignore the token. (fragment case) */
             if(end($this->stack)->nodeName === 'html') {
-                // Ignore
+                $this->ignored = true;
 
             /* Otherwise, pop the current node (which will be a colgroup
             element) from the stack of open elements. Switch the insertion
@@ -1989,6 +2005,7 @@ class HTML5_TreeConstructer {
         /* An end tag whose tag name is "col" */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] === 'col') {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
 
         /* An end-of-file token */
         /* If the current node is the root html  element */
@@ -2004,7 +2021,7 @@ class HTML5_TreeConstructer {
                 'type' => HTML5_Tokenizer::ENDTAG
             ));
 
-            //return $this->emitToken($token);
+            if (!$this->ignored) return $this->emitToken($token);
         }
     break;
 
@@ -2042,6 +2059,7 @@ class HTML5_TreeConstructer {
             Ignore the token. */
             if(!$this->elementInScope($token['name'], true)) {
                 // Parse error
+                $this->ignored = true;
 
             /* Otherwise: */
             } else {
@@ -2061,9 +2079,10 @@ class HTML5_TreeConstructer {
         ($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] === 'table')) {
             /* If the stack of open elements does not have a tbody, thead, or
             tfoot element in table scope, this is a parse error. Ignore the
-            token. (fragkment case) */
+            token. (fragment case) */
             if(!$this->elementInScope(array('tbody', 'thead', 'tfoot'), true)) {
                 // parse error
+                $this->ignored = true;
 
             /* Otherwise: */
             } else {
@@ -2086,6 +2105,7 @@ class HTML5_TreeConstructer {
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG && in_array($token['name'],
         array('body', 'caption', 'col', 'colgroup', 'html', 'td', 'th', 'tr'))) {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
 
         /* Anything else */
         } else {
@@ -2119,6 +2139,7 @@ class HTML5_TreeConstructer {
             Ignore the token. (fragment case) */
             if(!$this->elementInScope($token['name'], true)) {
                 // Ignore.
+                $this->ignored = true;
 
             /* Otherwise: */
             } else {
@@ -2143,9 +2164,7 @@ class HTML5_TreeConstructer {
                 'name' => 'tr',
                 'type' => HTML5_Tokenizer::ENDTAG
             ));
-            // XXX: if that token wasn't ignored
-
-            //return $this->emitToken($token);
+            if (!$ignored) return $this->emitToken($token);
 
         /* An end tag whose tag name is one of: "tbody", "tfoot", "thead" */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
@@ -2154,7 +2173,7 @@ class HTML5_TreeConstructer {
             scope with the same tag name as the token, this is a parse error.
             Ignore the token. */
             if(!$this->elementInScope($token['name'], true)) {
-                // Ignore.
+                $this->ignored = true;
 
             /* Otherwise: */
             } else {
@@ -2173,6 +2192,7 @@ class HTML5_TreeConstructer {
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG && in_array($token['name'],
         array('body', 'caption', 'col', 'colgroup', 'html', 'td', 'th'))) {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
 
         /* Anything else */
         } else {
@@ -2189,7 +2209,7 @@ class HTML5_TreeConstructer {
             scope with the same tag name as that of the token, then this is a
             parse error and the token must be ignored. */
             if(!$this->elementInScope($token['name'], true)) {
-                // Ignore.
+                $this->ignored = true;
 
             /* Otherwise: */
             } else {
@@ -2226,6 +2246,7 @@ class HTML5_TreeConstructer {
             (fragment case) */
             if(!$this->elementInScope(array('td', 'th'), true)) {
                 // parse error
+                $this->ignored = true;
 
             /* Otherwise, close the cell (see below) and reprocess the current
             token. */
@@ -2239,6 +2260,7 @@ class HTML5_TreeConstructer {
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG && in_array($token['name'],
         array('body', 'caption', 'col', 'colgroup', 'html'))) {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
 
         /* An end tag whose tag name is one of: "table", "tbody", "tfoot",
         "thead", "tr" */
@@ -2249,6 +2271,7 @@ class HTML5_TreeConstructer {
             (innerHTML case) */
             if(!$this->elementInScope(array('td', 'th'), true)) {
                 // Parse error
+                $this->ignored = true;
 
             /* Otherwise, close the cell (see below) and reprocess the current
             token. */
@@ -2347,6 +2370,7 @@ class HTML5_TreeConstructer {
                 array_pop($this->stack);
             } else {
                 // parse error
+                $this->ignored = true;
             }
 
         /* An end tag token whose tag name is "option" */
@@ -2359,6 +2383,7 @@ class HTML5_TreeConstructer {
                 array_pop($this->stack);
             } else {
                 // parse error
+                $this->ignored = true;
             }
 
         /* An end tag whose tag name is "select" */
@@ -2368,6 +2393,7 @@ class HTML5_TreeConstructer {
             scope with the same tag name as the token, this is a parse error.
             Ignore the token. (fragment case) */
             if(!$this->elementInScope($token['name'], true)) {
+                $this->ignored = true;
                 // parse error
 
             /* Otherwise: */
@@ -2410,6 +2436,7 @@ class HTML5_TreeConstructer {
         /* Anything else */
         } else {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
         }
     break;
 
@@ -2444,6 +2471,8 @@ class HTML5_TreeConstructer {
 
                 // XXX
                 //$this->emitToken($token);
+            } else {
+                $this->ignored = true;
             }
         } else {
             $this->processWithRulesFor($token, self::IN_SELECT);
@@ -2485,6 +2514,7 @@ class HTML5_TreeConstructer {
             /*     If the parser was originally created as part of the HTML
              *     fragment parsing algorithm, this is a parse error; ignore
              *     the token. (fragment case) */
+            $this->ignored = true;
             // XXX: implement this
 
             $this->mode = self::AFTER_AFTER_BODY;
@@ -2532,6 +2562,7 @@ class HTML5_TreeConstructer {
             /* If the current node is the root html element, then this is a
             parse error; ignore the token. (fragment case) */
             if(end($this->stack)->nodeName === 'html') {
+                $this->ignored = true;
                 // Parse error
 
             } else {
@@ -2569,6 +2600,7 @@ class HTML5_TreeConstructer {
         /* Anything else */
         } else {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
         }
     break;
 
@@ -2611,6 +2643,7 @@ class HTML5_TreeConstructer {
         /* Anything else */
         } else {
             /* Parse error. Ignore the token. */
+            $this->ignored = true;
         }
     break;
 
