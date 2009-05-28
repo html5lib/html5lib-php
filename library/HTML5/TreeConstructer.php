@@ -405,7 +405,7 @@ class HTML5_TreeConstructer {
             /* Change the insertion mode to "after head". */
             $this->mode = self::AFTER_HEAD;
 
-        // Slight logic inversion here to minimize duplicatoin
+        // Slight logic inversion here to minimize duplication
         /* A start tag with the tag name "head" or an end tag except "html". */
         } elseif(($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'head') ||
         ($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] !== 'html')) {
@@ -3093,14 +3093,14 @@ class HTML5_TreeConstructer {
 
     private function insertCDATAElement($token) {
         $this->insertElement($token);
-        $this->originalMode = $this->mode;
+        $this->original_mode = $this->mode;
         $this->mode = self::IN_CDATA_RCDATA;
         return HTML5_Tokenizer::CDATA;
     }
 
     private function insertRCDATAElement($token) {
         $this->insertElement($token);
-        $this->originalMode = $this->mode;
+        $this->original_mode = $this->mode;
         $this->mode = self::IN_CDATA_RCDATA;
         return HTML5_Tokenizer::RCDATA;
     }
