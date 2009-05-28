@@ -1902,6 +1902,8 @@ class HTML5_TreeConstructer {
                 $this->foster_parent = true;
                 $this->processWithRulesFor($token, self::IN_BODY);
                 $this->foster_parent = false;
+            } else {
+                $this->processWithRulesFor($token, self::IN_BODY);
             }
         }
     break;
