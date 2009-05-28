@@ -3,6 +3,7 @@
 /*
 
 Copyright 2007 Jeroen van der Meer <http://jero.net/>
+Copyright 2009 Edward Z. Yang <edwardzyang@thewritingpot.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a
 copy of this software and associated documentation files (the
@@ -25,16 +26,14 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 */
 
-
-// a lot of the attribute handling (specifically, when we look up
-// an attribute), is wrong, because I incorrectly assumed that
-// we were being passed a hash of attribute names to values. These
-// need to be fixed XXX
-//
-//
-// "wasn't ignored" is a pretty big bug that results in infinite
-// loops if not checked. Right now all of these calls are commented
-// out.
+// Tags for FIX ME!!!:
+//      XXX - should be fixed NAO!
+//      XERROR - with regards to parse errors
+//      XFOREIGN - with regards to SVG and MathML
+//      XQUIRKS - with regards to quirks mode
+//      XENCODING - with regards to encoding
+//      XSCRIPT - with regards to scripting mode
+//      XSKETCHY - we implemented the section, but no new test-cases passed
 
 class HTML5_TreeConstructer {
     public $stack = array();
@@ -49,16 +48,24 @@ class HTML5_TreeConstructer {
     private $form_pointer = null;
 
     private $flag_frameset_ok = true;
+    private $flag_force_quirks = false;
     private $ignored = false;
+    private $quirks_mode = null;
+    // this gets to 2 when we want to ignore the next lf character, and
+    // is decrement at the beginning of each processed token (this way,
+    // code can check for (bool)$ignore_lf_token, but it phases out
+    // appropriately)
+    private $ignore_lf_token = 0;
 
-    private $scoping = array('button','caption','html','marquee','object','table','td','th');
-    private $formatting = array('a','b','big','em','font','i','nobr','s','small','strike','strong','tt','u');
-    private $special = array('address','area','base','basefont','bgsound',
-    'blockquote','body','br','center','col','colgroup','dd','dir','div','dl',
-    'dt','embed','fieldset','form','frame','frameset','h1','h2','h3','h4','h5',
-    'h6','head','hr','iframe','image','img','input','isindex','li','link',
-    'listing','menu','meta','noembed','noframes','noscript','ol','optgroup',
-    'option','p','param','plaintext','pre','script','select','spacer','style',
+    // XFOREIGN: SVG's foreignObject is included in scoping
+    private $scoping = array('applet','button','caption','html','marquee','object','table','td','th');
+    private $formatting = array('a','b','big','code','em','font','i','nobr','s','small','strike','strong','tt','u');
+    private $special = array('address','area','article','aside','base','basefont','bgsound',
+    'blockquote','body','br','center','col','colgroup','command','dd','details','dialog','dir','div','dl',
+    'dt','embed','fieldset','figure','footer','form','frame','frameset','h1','h2','h3','h4','h5',
+    'h6','head','header','hgroup','hr','iframe','img','input','isindex','li','link',
+    'listing','menu','meta','nav','noembed','noframes','noscript','ol',
+    'p','param','plaintext','pre','script','select','spacer','style',
     'tbody','textarea','tfoot','thead','title','tr','ul','wbr');
 
     // Tree construction modes
@@ -69,21 +76,21 @@ class HTML5_TreeConstructer {
     const IN_HEAD_NOSCRIPT  = 4;
     const AFTER_HEAD        = 5;
     const IN_BODY           = 6;
-    const IN_CDATA_RCDATA   = 7; // XXX: renumber
-    const IN_TABLE          = 9;
-    const IN_CAPTION        = 10;
-    const IN_COLUMN_GROUP   = 11;
-    const IN_TABLE_BODY     = 12;
-    const IN_ROW            = 13;
-    const IN_CELL           = 14;
-    const IN_SELECT         = 15;
-    const IN_SELECT_IN_TABLE= 16;
-    const IN_FOREIGN_CONTENT= 17;
-    const AFTER_BODY        = 18;
-    const IN_FRAMESET       = 19;
-    const AFTER_FRAMESET    = 20;
-    const AFTER_AFTER_BODY  = 21;
-    const AFTER_AFTER_FRAMESET = 22;
+    const IN_CDATA_RCDATA   = 7;
+    const IN_TABLE          = 8;
+    const IN_CAPTION        = 9;
+    const IN_COLUMN_GROUP   = 10;
+    const IN_TABLE_BODY     = 11;
+    const IN_ROW            = 12;
+    const IN_CELL           = 13;
+    const IN_SELECT         = 14;
+    const IN_SELECT_IN_TABLE= 15;
+    const IN_FOREIGN_CONTENT= 16;
+    const AFTER_BODY        = 17;
+    const IN_FRAMESET       = 18;
+    const AFTER_FRAMESET    = 19;
+    const AFTER_AFTER_BODY  = 20;
+    const AFTER_AFTER_FRAMESET = 21;
 
     // The different types of elements.
     const SPECIAL    = 0;
@@ -91,6 +98,12 @@ class HTML5_TreeConstructer {
     const FORMATTING = 2;
     const PHRASING   = 3;
 
+    // Quirks modes in $quirks_mode
+    const NO_QUIRKS             = 0;
+    const QUIRKS_MODE           = 1;
+    const LIMITED_QUIRKS_MODE   = 2;
+
+    // Marker to be placed in $a_formatting
     const MARKER     = 0;
 
     public function __construct() {
@@ -105,6 +118,7 @@ class HTML5_TreeConstructer {
 
     // Process tag tokens
     public function emitToken($token, $mode = null) {
+        if ($this->ignore_lf_token) $this->ignore_lf_token--;
         $this->ignored = false;
         // indenting is a little wonky, this can be changed later on
         if ($mode === null) $mode = $this->mode;
@@ -145,14 +159,17 @@ class HTML5_TreeConstructer {
              * doctype attribute of the Document object. */
             if (!isset($token['public'])) $token['public'] = null;
             if (!isset($token['system'])) $token['system'] = null;
+            // Yes this is hacky. I'm kind of annoyed that I can't appendChild
+            // a doctype to DOMDocument. Maybe I haven't chanted the right
+            // syllables.
             $impl = new DOMImplementation();
             $doctype = $impl->createDocumentType($token['name'], $token['public'], $token['system']);
-            $this->dom = $impl->createDocument(null, 'html', $doctype);
-            // XXX: Implement quirks mode
+            $this->dom->appendChild($doctype);
+            // XQUIRKS: Implement quirks mode
             $this->mode = self::BEFORE_HTML;
         } else {
             // parse error
-            // XXX: Implement quirks mode
+            // XQUIRKS: Implement quirks mode
             /* Switch the insertion mode to "before html", then reprocess the
              * current token. */
             $this->mode = self::BEFORE_HTML;
@@ -184,10 +201,10 @@ class HTML5_TreeConstructer {
 
         /* A start tag whose tag name is "html" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] == 'html') {
-            /* Create an HTMLElement node with the tag name html, in the HTML
-            namespace. Append it to the Document object. Put this element in
-            the stack of open elements.*/
-            $html = $this->dom->createElement('html');
+            /* Create an element for the token in the HTML namespace. Append it 
+             * to the Document  object. Put this element in the stack of open 
+             * elements. */
+            $html = $this->insertElement($token, false);
             $this->dom->appendChild($html);
             $this->stack[] = $html;
 
@@ -326,9 +343,9 @@ class HTML5_TreeConstructer {
             $this->insertElement($token);
             array_pop($this->stack);
 
-            // YYY: Acknowledge the token's self-closing flag, if it is set.
-            //
-            // XXX: If the element has a charset attribute, and its value is a
+            // XERROR: Acknowledge the token's self-closing flag, if it is set.
+
+            // XENCODING: If the element has a charset attribute, and its value is a
             // supported encoding, and the confidence is currently tentative,
             // then change the encoding to the encoding given by the value of
             // the charset attribute.
@@ -347,20 +364,35 @@ class HTML5_TreeConstructer {
          * A start tag whose tag name is one of: "noframes", "style" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG &&
         ($token['name'] === 'noscript' || $token['name'] === 'noframes' || $token['name'] === 'style')) {
-            // XXX: Scripting flag not respected
+            // XSCRIPT: Scripting flag not respected
             return $this->insertCDATAElement($token);
 
-        // XXX: Scripting flag disable not implemented
+        // XSCRIPT: Scripting flag disable not implemented
 
         /* A start tag with the tag name "script" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'script') {
-            // XXX: This is wrong, not sure how much of spec we want
-            /* Create an element for the token. */
-            $element = $this->insertElement($token, false);
-            $this->head_pointer->appendChild($element);
+            /* 1. Create an element for the token in the HTML namespace. */
+            $node = $this->insertElement($token, false);
 
+            /* 2. Mark the element as being "parser-inserted" */
+            // Uhhh... XSCRIPT
+
+            /* 3. If the parser was originally created for the HTML
+             * fragment parsing algorithm, then mark the script element as 
+             * "already executed". (fragment case) */
+            // ditto... XSCRIPT
+
+            /* 4. Append the new element to the current node  and push it onto 
+             * the stack of open elements.  */
+            end($this->stack)->appendChild($node);
+            $this->stack[] = $node;
+            // I guess we could squash these together
+
+            /* 6. Let the original insertion mode be the current insertion mode. */
+            $this->original_mode = $this->mode;
+            /* 7. Switch the insertion mode to "in CDATA/RCDATA" */
             $this->mode = self::IN_CDATA_RCDATA;
-            /* Switch the tokeniser's content model flag to the CDATA state. */
+            /* 5. Switch the tokeniser's content model flag to the CDATA state. */
             return HTML5_Tokenizer::CDATA;
 
         /* An end tag with the tag name "head" */
@@ -590,7 +622,18 @@ class HTML5_TreeConstructer {
                         $this->ignored = true;
                         // Ignore
                     } else {
-                        // XXX: Not implemented
+                        // XSKETCHY
+                        /* 1. Remove the second element on the stack of open 
+                         * elements from its parent node, if it has one.  */
+                        $this->stack[1]->parentNode->removeChild($this->stack[1]);
+
+                        /* 2. Pop all the nodes from the bottom of the stack of 
+                         * open elements, from the current node up to the root 
+                         * html element. */
+                        array_splice($this->stack, 1);
+
+                        $this->insertElement($token);
+                        $this->mode = self::IN_FRAMESET;
                     }
                 break;
 
@@ -652,11 +695,11 @@ class HTML5_TreeConstructer {
                         ));
                     }
                     $this->insertElement($token);
-                    // XXX: We probably need some flag, then
                     /* If the next token is a U+000A LINE FEED (LF) character
                      * token, then ignore that token and move on to the next
                      * one. (Newlines at the start of pre blocks are ignored as
                      * an authoring convenience.) */
+                    $this->ignore_lf_token = 2;
                     $this->flag_frameset_ok = false;
 
                 /* A start tag whose tag name is "form" */
@@ -1078,11 +1121,12 @@ class HTML5_TreeConstructer {
                 case 'textarea':
                     $this->insertElement($token);
 
-                    // XXX: If the next token is a U+000A LINE FEED (LF)
-                    // character token, then ignore that token and move on to
-                    // the next one. (Newlines at the start of textarea
-                    // elements are ignored as an authoring convenience.)
-                    // need flag, see also <pre>
+                    /* If the next token is a U+000A LINE FEED (LF)
+                     * character token, then ignore that token and move on to
+                     * the next one. (Newlines at the start of textarea
+                     * elements are ignored as an authoring convenience.)
+                     * need flag, see also <pre> */
+                    $this->ignore_lf_token = 2;
 
                     $this->original_mode = $this->mode;
                     $this->flag_frameset_ok = false;
@@ -2164,7 +2208,7 @@ class HTML5_TreeConstructer {
                 'name' => 'tr',
                 'type' => HTML5_Tokenizer::ENDTAG
             ));
-            if (!$ignored) return $this->emitToken($token);
+            if (!$this->ignored) return $this->emitToken($token);
 
         /* An end tag whose tag name is one of: "tbody", "tfoot", "thead" */
         } elseif($token['type'] === HTML5_Tokenizer::ENDTAG &&
@@ -2708,13 +2752,25 @@ class HTML5_TreeConstructer {
                 }
             }
         }
-        $this->appendToRealParent($el);
-        $this->stack[] = $el;
+        if ($append) {
+            $this->appendToRealParent($el);
+            $this->stack[] = $el;
+        }
 
         return $el;
     }
 
     private function insertText($data) {
+        if ($data === '') return;
+        if ($this->ignore_lf_token) {
+            if ($data[0] === "\n") {
+                $data = substr($data, 1);
+                if ($data === false) return;
+            }
+        }
+        if (!is_string($data)) {
+            debug_print_backtrace();
+        }
         $text = $this->dom->createTextNode($data);
         $this->appendToRealParent($text);
     }
