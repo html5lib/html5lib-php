@@ -12,6 +12,7 @@ abstract class HTML5_DataHarness extends UnitTestCase
      * Filled in by HTML5_TestData::generateTestCases()
      */
     protected $filename;
+    private $tests;
     /**
      * Invoked by the runner, it is the function responsible for executing
      * the test and delivering results.
@@ -28,34 +29,20 @@ abstract class HTML5_DataHarness extends UnitTestCase
      * Returns a description of the test
      */
     abstract public function getDescription($test);
-    public function run($reporter) {
-        // this is all duplicated code, kinda ugly
-        // no skip support
-        $context = SimpleTest::getContext();
-        $context->setTest($this);
-        $context->setReporter($reporter);
-        $this->reporter = $reporter;
-        $started = false;
-        foreach ($this->getDataTests() as $test) {
-            $method = $this->getDescription($test);
-            if ($reporter->shouldInvoke($this->getLabel(), $method)) {
-                if (! $started) {
-                    $reporter->paintCaseStart($this->getLabel());
-                    $started = true;
-                }
-                $context = SimpleTest::getContext();
-                $queue = $context->get('SimpleErrorQueue');
-                $queue->setTestCase($this);
-                set_error_handler('SimpleTestErrorHandler');
-                $this->invoke($test);
-                restore_error_handler();
-                $queue->tally();
-            }
+    public function getTests() {
+        $this->tests = $this->getDataTests();
+        // 1-indexed, to be consistent with Python
+        $ret = array();
+        for ($i = 1; $i <= count($this->tests); $i++) {
+            $ret[] = "test_$i";
         }
-        if ($started) {
-            $reporter->paintCaseEnd($this->getLabel());
-        }
-        unset($this->reporter);
-        return $reporter->getStatus();
+        return $ret;
+    }
+    /**
+     * Emulates our test functions
+     */
+    public function __call($name, $args) {
+        list($test, $i) = explode("_", $name);
+        $this->invoke($this->tests[$i-1]);
     }
 }

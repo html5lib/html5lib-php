@@ -32,7 +32,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //      XQUIRKS - with regards to quirks mode
 //      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
-//      XSKETCHY - we implemented the section, but no new test-cases passed
 //      XENCODING - with regards to encoding (for reparsing tests)
 
 class HTML5_TreeConstructer {
@@ -592,7 +591,7 @@ class HTML5_TreeConstructer {
                     elements is not a body element, or, if the stack of open
                     elements has only one node on it, then ignore the token.
                     (fragment case) */
-                    if(count($this->stack) === 1 || $this->stack[1]->nodeName !== 'body') {
+                    if(count($this->stack) === 1 || $this->stack[1]->tagName !== 'body') {
                         $this->ignored = true;
                         // Ignore
 
@@ -623,7 +622,6 @@ class HTML5_TreeConstructer {
                         $this->ignored = true;
                         // Ignore
                     } else {
-                        // XSKETCHY
                         /* 1. Remove the second element on the stack of open 
                          * elements from its parent node, if it has one.  */
                         if($this->stack[1]->parentNode) {
@@ -829,7 +827,7 @@ class HTML5_TreeConstructer {
                         if($this->a_formatting[$n] === self::MARKER) {
                             break;
 
-                        } elseif($this->a_formatting[$n]->nodeName === 'a') {
+                        } elseif($this->a_formatting[$n]->tagName === 'a') {
                             $this->emitToken(array(
                                 'name' => 'a',
                                 'type' => HTML5_Tokenizer::ENDTAG
@@ -1249,7 +1247,7 @@ class HTML5_TreeConstructer {
                     /* If the second element in the stack of open elements is
                     not a body element, this is a parse error. Ignore the token.
                     (innerHTML case) */
-                    if(count($this->stack) < 2 || $this->stack[1]->nodeName !== 'body') {
+                    if(count($this->stack) < 2 || $this->stack[1]->tagName !== 'body') {
                         $this->ignored = true;
 
                     /* Otherwise, if there is a node in the stack of open
@@ -1295,20 +1293,15 @@ class HTML5_TreeConstructer {
                         /* Now, if the current node is not an element with
                         the same tag name as that of the token, then this
                         is a parse error. */
-                        // w/e
                         // XERROR: implement parse error logic
 
                         /* If the stack of open elements has an element in
                         scope with the same tag name as that of the token,
                         then pop elements from this stack until an element
                         with that tag name has been popped from the stack. */
-                        for($n = count($this->stack) - 1; $n >= 0; $n--) {
-                            if($this->stack[$n]->nodeName === $token['name']) {
-                                $n = -1;
-                            }
-
-                            array_pop($this->stack);
-                        }
+                        do {
+                            $node = array_pop($this->stack);
+                        } while ($node->tagName !== $token['name']);
                     } else {
                         // parse error
                     }
@@ -1902,7 +1895,7 @@ class HTML5_TreeConstructer {
             /* If the current node is a table, tbody, tfoot, thead, or tr
             element, then, whenever a node would be inserted into the current
             node, it must instead be inserted into the foster parent element. */
-            if(in_array(end($this->stack)->nodeName,
+            if(in_array(end($this->stack)->tagName,
             array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
                 $this->foster_parent = true;
                 $this->processWithRulesFor($token, self::IN_BODY);
@@ -2011,7 +2004,7 @@ class HTML5_TreeConstructer {
         $token['name'] === 'colgroup') {
             /* If the current node is the root html element, then this is a
             parse error, ignore the token. (fragment case) */
-            if(end($this->stack)->nodeName === 'html') {
+            if(end($this->stack)->tagName === 'html') {
                 $this->ignored = true;
 
             /* Otherwise, pop the current node (which will be a colgroup
@@ -2113,7 +2106,7 @@ class HTML5_TreeConstructer {
                 node ("tbody", "tfoot", or "thead") had been seen, then
                 reprocess the current token. */
                 $this->emitToken(array(
-                    'name' => end($this->stack)->nodeName,
+                    'name' => end($this->stack)->tagName,
                     'type' => HTML5_Tokenizer::ENDTAG
                 ));
 
@@ -2332,7 +2325,7 @@ class HTML5_TreeConstructer {
         $token['name'] === 'option') {
             /* If the current node is an option element, act as if an end tag
             with the tag name "option" had been seen. */
-            if(end($this->stack)->nodeName === 'option') {
+            if(end($this->stack)->tagName === 'option') {
                 $this->emitToken(array(
                     'name' => 'option',
                     'type' => HTML5_Tokenizer::ENDTAG
@@ -2347,7 +2340,7 @@ class HTML5_TreeConstructer {
         $token['name'] === 'optgroup') {
             /* If the current node is an option element, act as if an end tag
             with the tag name "option" had been seen. */
-            if(end($this->stack)->nodeName === 'option') {
+            if(end($this->stack)->tagName === 'option') {
                 $this->emitToken(array(
                     'name' => 'option',
                     'type' => HTML5_Tokenizer::ENDTAG
@@ -2356,7 +2349,7 @@ class HTML5_TreeConstructer {
 
             /* If the current node is an optgroup element, act as if an end tag
             with the tag name "optgroup" had been seen. */
-            if(end($this->stack)->nodeName === 'optgroup') {
+            if(end($this->stack)->tagName === 'optgroup') {
                 $this->emitToken(array(
                     'name' => 'optgroup',
                     'type' => HTML5_Tokenizer::ENDTAG
@@ -2375,8 +2368,8 @@ class HTML5_TreeConstructer {
             been seen. */
             $elements_in_stack = count($this->stack);
 
-            if($this->stack[$elements_in_stack - 1]->nodeName === 'option' &&
-            $this->stack[$elements_in_stack - 2]->nodeName === 'optgroup') {
+            if($this->stack[$elements_in_stack - 1]->tagName === 'option' &&
+            $this->stack[$elements_in_stack - 2]->tagName === 'optgroup') {
                 $this->emitToken(array(
                     'name' => 'option',
                     'type' => HTML5_Tokenizer::ENDTAG
@@ -2399,7 +2392,7 @@ class HTML5_TreeConstructer {
             /* If the current node is an option element, then pop that node
             from the stack of open elements. Otherwise, this is a parse error,
             ignore the token. */
-            if(end($this->stack)->nodeName === 'option') {
+            if(end($this->stack)->tagName === 'option') {
                 array_pop($this->stack);
             } else {
                 // parse error
@@ -2580,7 +2573,7 @@ class HTML5_TreeConstructer {
         $token['name'] === 'frameset') {
             /* If the current node is the root html element, then this is a
             parse error; ignore the token. (fragment case) */
-            if(end($this->stack)->nodeName === 'html') {
+            if(end($this->stack)->tagName === 'html') {
                 $this->ignored = true;
                 // Parse error
 
@@ -2804,23 +2797,13 @@ class HTML5_TreeConstructer {
                 /* 2. If node is the target node, terminate in a match state. */
                 return true;
 
-            } elseif($node->tagName === 'table') {
-                /* 3. Otherwise, if node is a table element, terminate in a failure
-                state. */
+            // these are the common states for "in scope" and "in table scope"
+            } elseif($node->tagName === 'table' || $node->tagName === 'html') {
                 return false;
 
-            } elseif($table === true && in_array($node->tagName, array('caption', 'td',
-            'th', 'button', 'marquee', 'object'))) {
-                /* 4. Otherwise, if the algorithm is the "has an element in scope"
-                variant (rather than the "has an element in table scope" variant),
-                and node is one of the following, terminate in a failure state. */
-                return false;
-
-            } elseif($node === $node->ownerDocument->documentElement) {
-                /* 5. Otherwise, if node is an html element (root element), terminate
-                in a failure state. (This can only happen if the node is the topmost
-                node of the    stack of open elements, and prevents the next step from
-                being invoked if there are no more elements in the stack.) */
+            // these are only valid for "in scope"
+            } elseif(!$table && in_array($node->tagName, array('applet', 'caption', 'td',
+            'th', 'button', 'marquee', 'object'))) { // XFOREIGN: foreignObject needed
                 return false;
             }
 
@@ -2932,7 +2915,7 @@ class HTML5_TreeConstructer {
         $node = end($this->stack);
         $elements = array_diff(array('dd', 'dt', 'li', 'p', 'td', 'th', 'tr'), $exclude);
 
-        while(in_array(end($this->stack)->nodeName, $elements)) {
+        while(in_array(end($this->stack)->tagName, $elements)) {
             array_pop($this->stack);
         }
     }
@@ -2959,7 +2942,7 @@ class HTML5_TreeConstructer {
         a table element or an html element, pop elements from the stack of open
         elements. */
         while(true) {
-            $node = end($this->stack)->nodeName;
+            $node = end($this->stack)->tagName;
 
             if(in_array($node, $elements)) {
                 break;
@@ -2988,62 +2971,62 @@ class HTML5_TreeConstructer {
 
             /* 4. If node is a select element, then switch the insertion mode to
             "in select" and abort these steps. (innerHTML case) */
-            if($node->nodeName === 'select') {
+            if($node->tagName === 'select') {
                 $this->mode = self::IN_SELECT;
                 break;
 
             /* 5. If node is a td or th element, then switch the insertion mode
             to "in cell" and abort these steps. */
-            } elseif($node->nodeName === 'td' || $node->nodeName === 'th') {
+            } elseif($node->tagName === 'td' || $node->nodeName === 'th') {
                 $this->mode = self::IN_CELL;
                 break;
 
             /* 6. If node is a tr element, then switch the insertion mode to
             "in    row" and abort these steps. */
-            } elseif($node->nodeName === 'tr') {
+            } elseif($node->tagName === 'tr') {
                 $this->mode = self::IN_ROW;
                 break;
 
             /* 7. If node is a tbody, thead, or tfoot element, then switch the
             insertion mode to "in table body" and abort these steps. */
-            } elseif(in_array($node->nodeName, array('tbody', 'thead', 'tfoot'))) {
+            } elseif(in_array($node->tagName, array('tbody', 'thead', 'tfoot'))) {
                 $this->mode = self::IN_TBODY;
                 break;
 
             /* 8. If node is a caption element, then switch the insertion mode
             to "in caption" and abort these steps. */
-            } elseif($node->nodeName === 'caption') {
+            } elseif($node->tagName === 'caption') {
                 $this->mode = self::IN_CAPTION;
                 break;
 
             /* 9. If node is a colgroup element, then switch the insertion mode
             to "in column group" and abort these steps. (innerHTML case) */
-            } elseif($node->nodeName === 'colgroup') {
+            } elseif($node->tagName === 'colgroup') {
                 $this->mode = self::IN_CGROUP;
                 break;
 
             /* 10. If node is a table element, then switch the insertion mode
             to "in table" and abort these steps. */
-            } elseif($node->nodeName === 'table') {
+            } elseif($node->tagName === 'table') {
                 $this->mode = self::IN_TABLE;
                 break;
 
             /* 11. If node is a head element, then switch the insertion mode
             to "in body" ("in body"! not "in head"!) and abort these steps.
             (innerHTML case) */
-            } elseif($node->nodeName === 'head') {
+            } elseif($node->tagName === 'head') {
                 $this->mode = self::IN_BODY;
                 break;
 
             /* 12. If node is a body element, then switch the insertion mode to
             "in body" and abort these steps. */
-            } elseif($node->nodeName === 'body') {
+            } elseif($node->tagName === 'body') {
                 $this->mode = self::IN_BODY;
                 break;
 
             /* 13. If node is a frameset element, then switch the insertion
             mode to "in frameset" and abort these steps. (innerHTML case) */
-            } elseif($node->nodeName === 'frameset') {
+            } elseif($node->tagName === 'frameset') {
                 $this->mode = self::IN_FRAME;
                 break;
 
@@ -3051,7 +3034,7 @@ class HTML5_TreeConstructer {
             pointer is null, switch the insertion mode to "before head",
             otherwise, switch the insertion mode to "after head". In either
             case, abort these steps. (innerHTML case) */
-            } elseif($node->nodeName === 'html') {
+            } elseif($node->tagName === 'html') {
                 $this->mode = ($this->head_pointer === null)
                     ? self::BEFOR_HEAD
                     : self::AFTER_HEAD;
@@ -3141,7 +3124,7 @@ class HTML5_TreeConstructer {
         element is the element before the last table element in the
         stack of open elements. */
         for($n = count($this->stack) - 1; $n >= 0; $n--) {
-            if($this->stack[$n]->nodeName === 'table') {
+            if($this->stack[$n]->tagName === 'table') {
                 $table = $this->stack[$n];
                 break;
             }

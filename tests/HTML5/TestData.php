@@ -22,6 +22,11 @@ class HTML5_TestData
         foreach (HTML5_TestData::getList($type, $glob) as $filename) {
             $name = str_replace('-', '', basename($filename));
             $name = ucfirst(substr($name, 0, strcspn($name, '.')));
+            if ($type === 'tree-construction') {
+                // skip XFOREIGN tests for now
+                $num = (int) substr($name, 5);
+                if ($num >= 9) continue;
+            }
             $pfilename = var_export($filename, true);
             $code = "class $prefix$name extends $base { public \$filename = $pfilename; }";
             eval($code);
