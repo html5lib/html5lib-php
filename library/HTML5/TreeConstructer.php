@@ -308,7 +308,7 @@ class HTML5_TreeConstructer {
             $this->insertElement($token);
             array_pop($this->stack);
 
-            // XXX: Acknowledge the token's self-closing flag, if it is set.
+            // YYY: Acknowledge the token's self-closing flag, if it is set.
 
         /* A start tag whose tag name is "meta" */
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'meta') {
@@ -317,7 +317,7 @@ class HTML5_TreeConstructer {
             $this->insertElement($token);
             array_pop($this->stack);
 
-            // XXX: Acknowledge the token's self-closing flag, if it is set.
+            // YYY: Acknowledge the token's self-closing flag, if it is set.
             //
             // XXX: If the element has a charset attribute, and its value is a
             // supported encoding, and the confidence is currently tentative,
@@ -506,7 +506,7 @@ class HTML5_TreeConstructer {
                 /* If the token is not one of U+0009 CHARACTER TABULATION,
                  * U+000A LINE FEED (LF), U+000C FORM FEED (FF),  or U+0020
                  * SPACE, then set the frameset-ok flag to "not ok". */
-                // XXX: not implemented
+                // YYY: not implemented
             break;
 
             /* A comment token */
@@ -906,7 +906,7 @@ class HTML5_TreeConstructer {
                     /* Immediately pop the current node off the stack of open elements. */
                     array_pop($this->stack);
 
-                    // XXX: Acknowledge the token's self-closing flag, if it is set.
+                    // YYY: Acknowledge the token's self-closing flag, if it is set.
 
                     $this->flag_frameset_ok = false;
                 break;
@@ -918,7 +918,7 @@ class HTML5_TreeConstructer {
                     /* Immediately pop the current node off the stack of open elements. */
                     array_pop($this->stack);
 
-                    // XXX: Acknowledge the token's self-closing flag, if it is set.
+                    // YYY: Acknowledge the token's self-closing flag, if it is set.
                 break;
 
                 /* A start tag whose tag name is "hr" */
@@ -938,7 +938,7 @@ class HTML5_TreeConstructer {
                     /* Immediately pop the current node off the stack of open elements. */
                     array_pop($this->stack);
 
-                    // XXX: Acknowledge the token's self-closing flag, if it is set.
+                    // YYY: Acknowledge the token's self-closing flag, if it is set.
 
                     $this->flag_frameset_ok = false;
                 break;
@@ -965,9 +965,9 @@ class HTML5_TreeConstructer {
                          * element to the value of the "action" attribute of
                          * the token. */
                         $attr = array();
-                        // XXX: bug
-                        if (isset($token['attr']['action'])) {
-                            $attr['action'] = $token['attr']['action'];
+                        $action = $this->getAttr($token, 'action');
+                        if ($action !== false) {
+                            $attr[] = array('name' => 'action', 'value' => $action);
                         }
                         $this->emitToken(array(
                             'name' => 'form',
@@ -999,21 +999,27 @@ class HTML5_TreeConstructer {
                             'attr' => array()
                         ));
 
-                        // XXX: bug
-                        // XXX: not strictly in spec; is this ok?
                         /* Act as if a stream of character tokens had been seen. */
-                        if (isset($token['attr']['prompt'])) {
-                            $this->insertText($token['attr']['prompt']);
-                        } else {
-                            $this->insertText('This is a searchable index. '.
-                            'Insert your search keywords here: ');
+                        $prompt = $this->getAttr($token, 'prompt');
+                        if ($prompt === false) {
+                            $prompt = 'This is a searchable index. '.
+                            'Insert your search keywords here: ';
                         }
+                        $this->emitToken(array(
+                            'data' => $prompt,
+                            'type' => HTML5_Tokenizer::CHARACTER,
+                        ));
 
                         /* Act as if a start tag token with the tag name "input"
                         had been seen, with all the attributes from the "isindex"
                         token, except with the "name" attribute set to the value
                         "isindex" (ignoring any explicit "name" attribute). */
-                        $attr = $token['attr'];
+                        $attr = array();
+                        foreach ($token['attr'] as $keypair) {
+                            if ($keypair['name'] === 'name' || $keypair['name'] === 'action' ||
+                                $keypair['name'] === 'prompt') continue;
+                            $attr[] = $keypair;
+                        }
                         // XXX: remove attributes
                         $attr[] = array('name' => 'name', 'value' => 'isindex');
 
@@ -1022,11 +1028,6 @@ class HTML5_TreeConstructer {
                             'type' => HTML5_Tokenizer::STARTTAG,
                             'attr' => $attr
                         ));
-
-                        /* Act as if a stream of character tokens had been seen
-                        (see below for what they should say). */
-                        $this->insertText('This is a searchable index. '.
-                        'Insert your search keywords here: ');
 
                         /* Act as if an end tag token with the tag name "label"
                         had been seen. */
@@ -1046,7 +1047,7 @@ class HTML5_TreeConstructer {
                         been seen. */
                         $this->emitToken(array(
                             'name' => 'hr',
-                            'type' => HTML5_Tokenizer::ENDTAG
+                            'type' => HTML5_Tokenizer::STARTTAG
                         ));
 
                         /* Act as if an end tag token with the tag name "form" had
@@ -1627,11 +1628,12 @@ class HTML5_TreeConstructer {
                     for($n = count($this->stack) - 1; $n >= 0; $n--) {
                         /* Initialise node to be the current node (the bottommost
                         node of the stack). */
-                        $node = end($this->stack);
+                        $node = $this->stack[$n];
 
                         /* If node has the same tag name as the end tag token,
                         then: */
-                        if($token['name'] === $node->nodeName) {
+                        if ($token['name'] === 'label') var_dump($node->tagName);
+                        if($token['name'] === $node->tagName) {
                             /* Generate implied end tags. */
                             $this->generateImpliedEndTags();
 
@@ -3062,6 +3064,15 @@ class HTML5_TreeConstructer {
         $this->originalMode = $this->mode;
         $this->mode = self::IN_CDATA_RCDATA;
         return HTML5_Tokenizer::RCDATA;
+    }
+
+    private function getAttr($key) {
+        if (!isset($token['attr'])) return false;
+        $ret = false;
+        foreach ($token['attr'] as $keypair) {
+            if ($keypair['key'] === $key) $ret = $keypair['value'];
+        }
+        return $ret;
     }
 
     public function save() {
