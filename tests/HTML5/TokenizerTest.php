@@ -31,10 +31,18 @@ abstract class HTML5_TokenizerHarness extends HTML5_JSONHarness
             );
             if ($expect != $result) {
                 echo "Input: "; str_dump($test->input);
-                echo "Expected: "; var_dump($expect);
-                echo "Actual: "; var_dump($result);
+                echo "\nExpected: \n"; echo $this->tokenDump($expect);
+                echo "\nActual: \n"; echo $this->tokenDump($result);
+                echo "\n";
             }
         }
+    }
+    private function tokenDump($tokens) {
+        $ret = '';
+        foreach ($tokens as $i => $token) {
+            $ret .= ($i+1).". {$token[0]}: {$token[1]}\n";
+        }
+        return $ret;
     }
     public function tokenize($test, $flag) {
         $flag = constant("HTML5_Tokenizer::$flag");

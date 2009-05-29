@@ -105,7 +105,17 @@ class HTML5_Tokenizer {
         $lastFourChars = '';
         //echo "\n\n";
         while($state !== null) {
-            //echo $state . "\n";
+            /*
+            echo $state . ' ';
+            switch ($this->content_model) {
+                case self::PCDATA: echo 'PCDATA'; break;
+                case self::RCDATA: echo 'RCDATA'; break;
+                case self::CDATA: echo 'CDATA'; break;
+                case self::PLAINTEXT: echo 'PLAINTEXT'; break;
+            }
+            if ($this->escape) echo " escape";
+            echo "\n";
+             */
             switch($state) {
                 case 'data':
 
@@ -114,7 +124,8 @@ class HTML5_Tokenizer {
 
                     /* Consume the next input character */
                     $char = $this->stream->char();
-                    $lastFourChars = substr($lastFourChars . $char, -4);
+                    $lastFourChars .= $char;
+                    if (strlen($lastFourChars) > 4) $lastFourChars = substr($lastFourChars, -4);
 
                     // see below for meaning
                     $amp_cond =
@@ -218,7 +229,7 @@ class HTML5_Tokenizer {
                             'data' => $char . $chars
                         ));
 
-                        $lastFourChars = substr($lastFourChars . $chars, -4);
+                        $lastFourChars .= $chars;
 
                         $state = 'data';
                     }

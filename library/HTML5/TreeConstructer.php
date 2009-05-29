@@ -1682,7 +1682,6 @@ class HTML5_TreeConstructer {
 
                         /* If node has the same tag name as the end tag token,
                         then: */
-                        if ($token['name'] === 'label') var_dump($node->tagName);
                         if($token['name'] === $node->tagName) {
                             /* Generate implied end tags. */
                             $this->generateImpliedEndTags();
