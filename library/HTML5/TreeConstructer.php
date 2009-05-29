@@ -738,6 +738,7 @@ class HTML5_TreeConstructer {
                      * an authoring convenience.) */
                     $this->ignore_lf_token = 2;
                     $this->flag_frameset_ok = false;
+                break;
 
                 /* A start tag whose tag name is "form" */
                 case 'form':
