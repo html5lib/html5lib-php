@@ -56,6 +56,36 @@ function str_dump($string) {
     echo "\n";
 }
 
+/**
+ * Pretty prints a token as taken by TreeConstructer->emitToken
+ */
+function token_dump($token) {
+    switch ($token['type']) {
+    case HTML5_Tokenizer::DOCTYPE:
+        echo "<!doctype ...>\n";
+        break;
+    case HTML5_Tokenizer::STARTTAG:
+        $attr = '';
+        foreach ($token['attr'] as $kp) {
+            $attr .= ' '.$kp['name'] . '="' . $kp['value'] . '"';
+        }
+        echo "<{$token['name']}$attr>\n";
+        break;
+    case HTML5_Tokenizer::ENDTAG:
+        echo "</{$token['name']}>\n";
+        break;
+    case HTML5_Tokenizer::COMMENT:
+        echo "<!-- {$token['data']} -->\n";
+        break;
+    case HTML5_Tokenizer::CHARACTER:
+        echo '"'.$token['data'].'"'."\n";
+        break;
+    case HTML5_Tokenizer::EOF:
+        echo "EOF\n";
+        break;
+    }
+}
+
 require_once $simpletest_location . '/autorun.php';
 
 class TimedTextReporter extends TextReporter

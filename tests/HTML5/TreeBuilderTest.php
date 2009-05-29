@@ -5,7 +5,7 @@ require_once dirname(__FILE__) . '/../autorun.php';
 SimpleTest::ignore('HTML5_TreeBuilderHarness');
 class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
 {
-    public function assertIdentical($expect, $actual, $input) {
+    public function assertIdentical($expect, $actual, $input = '%s') {
         parent::assertIdentical($expect, $actual, "Identical expectation failed\nInput:\n$input\n\nExpected:\n$expect\n\nActual:\n$actual\n");
     }
     public function invoke($test) {

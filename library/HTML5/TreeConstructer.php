@@ -93,19 +93,31 @@ class HTML5_TreeConstructer {
     const AFTER_AFTER_BODY  = 20;
     const AFTER_AFTER_FRAMESET = 21;
 
+    /**
+     * Converts a magic number to a readable name. Use for debugging.
+     */
+    private function strConst($number) {
+        static $lookup;
+        if (!$lookup) {
+            $r = new ReflectionClass('HTML5_TreeConstructer');
+            $lookup = array_flip($r->getConstants());
+        }
+        return $lookup[$number];
+    }
+
     // The different types of elements.
-    const SPECIAL    = 0;
-    const SCOPING    = 1;
-    const FORMATTING = 2;
-    const PHRASING   = 3;
+    const SPECIAL    = 100;
+    const SCOPING    = 101;
+    const FORMATTING = 102;
+    const PHRASING   = 103;
 
     // Quirks modes in $quirks_mode
-    const NO_QUIRKS             = 0;
-    const QUIRKS_MODE           = 1;
-    const LIMITED_QUIRKS_MODE   = 2;
+    const NO_QUIRKS             = 200;
+    const QUIRKS_MODE           = 201;
+    const LIMITED_QUIRKS_MODE   = 202;
 
     // Marker to be placed in $a_formatting
-    const MARKER     = 0;
+    const MARKER     = 300;
 
     public function __construct() {
         $this->mode = self::INITIAL;
@@ -119,10 +131,21 @@ class HTML5_TreeConstructer {
 
     // Process tag tokens
     public function emitToken($token, $mode = null) {
+        // XXX: ignore parse errors... why are we emitting them, again?
+        if ($token['type'] === HTML5_Tokenizer::PARSEERROR) return;
+        if ($mode === null) $mode = $this->mode;
+
+        /*
+        $backtrace = debug_backtrace();
+        if ($backtrace[1]['class'] !== 'HTML5_TreeConstructer') echo "--\n";
+        echo $this->strConst($mode) . "\n  ";
+        token_dump($token);
+        if ($this->foster_parent) echo "  -> this is a foster parent mode\n";
+         */
+
         if ($this->ignore_lf_token) $this->ignore_lf_token--;
         $this->ignored = false;
         // indenting is a little wonky, this can be changed later on
-        if ($mode === null) $mode = $this->mode;
         switch ($mode) {
 
     case self::INITIAL:
@@ -164,8 +187,15 @@ class HTML5_TreeConstructer {
             // a doctype to DOMDocument. Maybe I haven't chanted the right
             // syllables.
             $impl = new DOMImplementation();
-            $doctype = $impl->createDocumentType($token['name'], $token['public'], $token['system']);
-            $this->dom->appendChild($doctype);
+            // This call can fail for particularly pathological cases (namely,
+            // the qualifiedName parameter ($token['name']) could be missing.
+            if ($token['name']) {
+                $doctype = $impl->createDocumentType($token['name'], $token['public'], $token['system']);
+                $this->dom->appendChild($doctype);
+            } else {
+                // It looks like libxml's not actually *able* to express this case.
+                // So... don't. XXX
+            }
             // XQUIRKS: Implement quirks mode
             $this->mode = self::BEFORE_HTML;
         } else {
@@ -828,10 +858,19 @@ class HTML5_TreeConstructer {
                             break;
 
                         } elseif($this->a_formatting[$n]->tagName === 'a') {
+                            $a = $this->a_formatting[$n];
                             $this->emitToken(array(
                                 'name' => 'a',
                                 'type' => HTML5_Tokenizer::ENDTAG
                             ));
+                            if (in_array($a, $this->a_formatting)) {
+                                $a_i = array_search($a, $this->a_formatting, true);
+                                if($a_i !== false) array_splice($this->a_formatting, $a_i, 1);
+                            }
+                            if (in_array($a, $this->stack)) {
+                                $a_i = array_search($a, $this->stack, true);
+                                if ($a_i !== false) array_splice($this->stack, $a_i, 1);
+                            }
                             break;
                         }
                     }
@@ -1326,7 +1365,7 @@ class HTML5_TreeConstructer {
                             // parse error
                         }
                         /* 3. Remove node from the stack of open elements. */
-                        array_splice($this->stack, array_search($node, $this->stack), 1);
+                        array_splice($this->stack, array_search($node, $this->stack, true), 1);
                     }
 
                 break;
@@ -1896,9 +1935,10 @@ class HTML5_TreeConstructer {
             node, it must instead be inserted into the foster parent element. */
             if(in_array(end($this->stack)->tagName,
             array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
+                $old = $this->foster_parent;
                 $this->foster_parent = true;
                 $this->processWithRulesFor($token, self::IN_BODY);
-                $this->foster_parent = false;
+                $this->foster_parent = $old;
             } else {
                 $this->processWithRulesFor($token, self::IN_BODY);
             }
@@ -2753,7 +2793,7 @@ class HTML5_TreeConstructer {
     }
 
     private function appendChild($parent, $node) {
-        if ($node instanceof DOMCharacterData && $parent->lastChild instanceof DOMCharacterData) {
+        if ($node instanceof DOMText && $parent->lastChild instanceof DOMText) {
             // attach text to previous node
             $parent->lastChild->data .= $node->data;
         } else {
@@ -2762,11 +2802,11 @@ class HTML5_TreeConstructer {
     }
 
     private function insertBefore($parent, $node, $marker) {
-        if ($node instanceof DOMCharacterData) {
-            if ($marker instanceof DOMCharacterData) {
+        if ($node instanceof DOMText) {
+            if ($marker instanceof DOMText) {
                 $marker->data = $node->data . $marker->data;
                 return;
-            } elseif ($marker->previousSibling && $marker->previousSibling instanceof DOMCharacterData) {
+            } elseif ($marker->previousSibling && $marker->previousSibling instanceof DOMText) {
                 $marker->previousSibling->data .= $node->data;
                 return;
             }
@@ -3159,6 +3199,16 @@ class HTML5_TreeConstructer {
             $this->insertBefore($foster_parent, $node, $table);
         } else {
             $this->appendChild($foster_parent, $node);
+        }
+    }
+
+    /**
+     * For debugging, prints the stack
+     */
+    private function printStack() {
+        echo "  Stack:\n";
+        foreach ($this->stack as $i => $element) {
+            echo "    " . ($i+1) . ". " . $element->tagName . "\n";
         }
     }
 
