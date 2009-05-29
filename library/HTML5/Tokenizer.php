@@ -2255,10 +2255,11 @@ class HTML5_Tokenizer {
         }
 
         // the current structure of attributes is not a terribly good one
-        $emit = $this->tree->emitToken($token);
+        $this->tree->emitToken($token);
 
-        if(is_int($emit)) {
-            $this->content_model = $emit;
+        if(is_int($this->tree->content_model)) {
+            $this->content_model = $this->tree->content_model;
+            $this->tree->content_model = null;
 
         } elseif($token['type'] === self::ENDTAG) {
             $this->content_model = self::PCDATA;
