@@ -1732,9 +1732,11 @@ class HTML5_TreeConstructer {
 
                             /* Pop all the nodes from the current node up to
                             node, including node, then stop these steps. */
-                            for($x = count($this->stack) - $n; $x >= $n; $x--) {
-                                array_pop($this->stack);
-                            }
+                            // XSKETCHY
+                            do {
+                                $pop = array_pop($this->stack);
+                            } while ($pop !== $node);
+                            break;
 
                         } else {
                             $category = $this->getElementCategory($node);
