@@ -437,9 +437,11 @@ class HTML5_TreeConstructer {
             $this->mode = self::AFTER_HEAD;
 
         // Slight logic inversion here to minimize duplication
-        /* A start tag with the tag name "head" or an end tag except "html". */
+        /* A start tag with the tag name "head". */
+        /* An end tag whose tag name is not one of: "body", "html", "br" */
         } elseif(($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'head') ||
-        ($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] !== 'html')) {
+        ($token['type'] === HTML5_Tokenizer::ENDTAG && $token['name'] !== 'html' &&
+        $token['name'] !== 'body' && $token['name'] !== 'br')) {
             // Parse error. Ignore the token.
             $this->ignored = true;
 
@@ -784,10 +786,10 @@ class HTML5_TreeConstructer {
                          * tag with the same tag name as node had been seen, then
                          * jump to the last step. */
                         if(($token['name'] === 'li' && $node->tagName === 'li') ||
-                        ($node->tagName === 'dd' || $node->tagName === 'dt')) { // limited conditional
+                        ($token['name'] !== 'li' && ($node->tagName === 'dd' || $node->tagName === 'dt'))) { // limited conditional
                             $this->emitToken(array(
                                 'type' => HTML5_Tokenizer::ENDTAG,
-                                'name' => $token['name'],
+                                'name' => $node->tagName,
                             ));
                             break;
                         }
