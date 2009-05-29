@@ -85,6 +85,7 @@ class HTML5_Tokenizer {
     const LOWER_ALPHA = 'abcdefghijklmnopqrstuvwxyz';
     const DIGIT       = '0123456789';
     const HEX         = '0123456789ABCDEFabcdef';
+    const WHITESPACE  = "\t\n\x0c ";
 
     /**
      * @param $data Data to parse
@@ -217,12 +218,17 @@ class HTML5_Tokenizer {
                         THIS IS AN OPTIMIZATION: Get as many character that
                         otherwise would also be treated as a character token and emit it
                         as a single character token. Stay in the data state. */
+                        $chars = '';
 
-                        $mask = '->';
-                        if ($amp_cond) $mask .= '&';
-                        if ($lt_cond)  $mask .= '<';
+                        // XSKETCHY: introduced three more fails (at least)
+                        if ($char !== ' ' && $char !== "\n" && $char !== "\r" &&
+                        $char !== "\t" && $char !== "\x0c") {
+                            $mask = '->' . self::WHITESPACE;
+                            if ($amp_cond) $mask .= '&';
+                            if ($lt_cond)  $mask .= '<';
 
-                        $chars = $this->stream->charsUntil($mask);
+                            $chars = $this->stream->charsUntil($mask);
+                        }
 
                         $this->emitToken(array(
                             'type' => self::CHARACTER,
