@@ -1741,12 +1741,13 @@ class HTML5_TreeConstructer {
                         } else {
                             $category = $this->getElementCategory($node);
 
-                            if($category !== self::SPECIAL && $category !== self::SCOPING) {
+                            if($category !== self::FORMATTING && $category !== self::PHRASING) {
                                 /* Otherwise, if node is in neither the formatting
                                 category nor the phrasing category, then this is a
                                 parse error. Stop this algorithm. The end tag token
                                 is ignored. */
                                 $this->ignored = true;
+                                break;
                                 // parse error
                             }
                         }
