@@ -140,8 +140,10 @@ class HTML5_TreeConstructer {
         if ($backtrace[1]['class'] !== 'HTML5_TreeConstructer') echo "--\n";
         echo $this->strConst($mode) . "\n  ";
         token_dump($token);
+        $this->printStack();
+        $this->printActiveFormattingElements();
         if ($this->foster_parent) echo "  -> this is a foster parent mode\n";
-         */
+        */
 
         if ($this->ignore_lf_token) $this->ignore_lf_token--;
         $this->ignored = false;
@@ -1933,18 +1935,10 @@ class HTML5_TreeConstructer {
             /* Parse error. Process the token as if the insertion mode was "in
             body", with the following exception: */
 
-            /* If the current node is a table, tbody, tfoot, thead, or tr
-            element, then, whenever a node would be inserted into the current
-            node, it must instead be inserted into the foster parent element. */
-            if(in_array(end($this->stack)->tagName,
-            array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
-                $old = $this->foster_parent;
-                $this->foster_parent = true;
-                $this->processWithRulesFor($token, self::IN_BODY);
-                $this->foster_parent = $old;
-            } else {
-                $this->processWithRulesFor($token, self::IN_BODY);
-            }
+            $old = $this->foster_parent;
+            $this->foster_parent = true;
+            $this->processWithRulesFor($token, self::IN_BODY);
+            $this->foster_parent = $old;
         }
     break;
 
@@ -2788,7 +2782,12 @@ class HTML5_TreeConstructer {
     }
 
     private function appendToRealParent($node) {
-        if(!$this->foster_parent) {
+        // this is only for the foster_parent case
+        /* If the current node is a table, tbody, tfoot, thead, or tr
+        element, then, whenever a node would be inserted into the current
+        node, it must instead be inserted into the foster parent element. */
+        if(!$this->foster_parent || !in_array(end($this->stack)->tagName,
+        array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
             $this->appendChild(end($this->stack), $node);
         } else {
             $this->fosterParent($node);
@@ -2910,7 +2909,7 @@ class HTML5_TreeConstructer {
 
             /* 9. Append clone to the current node and push it onto the stack
             of open elements  so that it is the new current node. */
-            end($this->stack)->appendChild($clone);
+            $this->appendToRealParent($clone);
             $this->stack[] = $clone;
 
             /* 10. Replace the entry for entry in the list with an entry for
@@ -3209,10 +3208,24 @@ class HTML5_TreeConstructer {
      * For debugging, prints the stack
      */
     private function printStack() {
-        echo "  Stack:\n";
+        $names = array();
         foreach ($this->stack as $i => $element) {
-            echo "    " . ($i+1) . ". " . $element->tagName . "\n";
+            $names[] = $element->tagName;
         }
+        echo "  -> stack [" . implode(', ', $names) . "]\n";
+    }
+
+    /**
+     * For debugging, prints active formatting elements
+     */
+    private function printActiveFormattingElements() {
+        if (!$this->a_formatting) return;
+        $names = array();
+        foreach ($this->a_formatting as $node) {
+            if ($node === self::MARKER) $names[] = 'MARKER';
+            else $names[] = $node->tagName;
+        }
+        echo "  -> active formatting [" . implode(', ', $names) . "]\n";
     }
 
     public function currentTableIsTainted() {
