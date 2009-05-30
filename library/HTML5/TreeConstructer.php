@@ -2420,7 +2420,7 @@ class HTML5_TreeConstructer {
             /* If the current node is an optgroup element, then pop that node
             from the stack of open elements. Otherwise, this is a parse error,
             ignore the token. */
-            if(end($this->stack) === 'optgroup') {
+            if(end($this->stack)->tagName === 'optgroup') {
                 array_pop($this->stack);
             } else {
                 // parse error
