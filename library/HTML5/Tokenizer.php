@@ -153,25 +153,32 @@ class HTML5_Tokenizer {
                         the "anything else" entry below. */
                         $state = 'characterReferenceData';
 
-                    } elseif($char === '-') {
-                        /* If the content model flag is set to either the RCDATA state or
+                    } elseif(
+                        $char === '-' &&
+                        (
+                            $this->content_model === self::RCDATA ||
+                            $this->content_model === self::CDATA
+                        ) &&
+                        $this->escape === false &&
+                        $lastFourChars === '<!--'
+                    ) {
+                        /*
+                        U+002D HYPHEN-MINUS (-)
+                        If the content model flag is set to either the RCDATA state or
                         the CDATA state, and the escape flag is false, and there are at
                         least three characters before this one in the input stream, and the
                         last four characters in the input stream, including this one, are
                         U+003C LESS-THAN SIGN, U+0021 EXCLAMATION MARK, U+002D HYPHEN-MINUS,
                         and U+002D HYPHEN-MINUS ("<!--"), then set the escape flag to true. */
-                        if(($this->content_model === self::RCDATA || $this->content_model ===
-                        self::CDATA) && $this->escape === false &&
-                        $lastFourChars === '<!--') {
-                            $this->escape = true;
-                        }
+                        $this->escape = true;
 
                         /* In any case, emit the input character as a character token. Stay
                         in the data state. */
                         $this->emitToken(array(
                             'type' => self::CHARACTER,
-                            'data' => $char
+                            'data' => '-'
                         ));
+                        // We do the "any case" part as part of "anything else".
 
                     /* U+003C LESS-THAN SIGN (<) */
                     } elseif($char === '<' && $lt_cond) {
@@ -186,24 +193,29 @@ class HTML5_Tokenizer {
                         $state = 'tagOpen';
 
                     /* U+003E GREATER-THAN SIGN (>) */
-                    } elseif($char === '>') {
+                    } elseif(
+                        $char === '>' &&
+                        (
+                            $this->content_model === self::RCDATA ||
+                            $this->content_model === self::CDATA
+                        ) &&
+                        $this->escape === true &&
+                        substr($lastFourChars, 1) === '-->'
+                    ) {
                         /* If the content model flag is set to either the RCDATA state or
                         the CDATA state, and the escape flag is true, and the last three
                         characters in the input stream including this one are U+002D
                         HYPHEN-MINUS, U+002D HYPHEN-MINUS, U+003E GREATER-THAN SIGN ("-->"),
                         set the escape flag to false. */
-                        if(($this->content_model === self::RCDATA ||
-                        $this->content_model === self::CDATA) && $this->escape === true &&
-                        substr($lastFourChars, 1) === '-->') {
-                            $this->escape = false;
-                        }
+                        $this->escape = false;
 
                         /* In any case, emit the input character as a character token.
                         Stay in the data state. */
                         $this->emitToken(array(
                             'type' => self::CHARACTER,
-                            'data' => $char
+                            'data' => '>'
                         ));
+                        // We do the "any case" part as part of "anything else".
 
                     } elseif($char === false) {
                         /* EOF
@@ -223,6 +235,7 @@ class HTML5_Tokenizer {
                         // XSKETCHY: introduced three more fails (at least)
                         if ($char !== ' ' && $char !== "\n" && $char !== "\r" &&
                         $char !== "\t" && $char !== "\x0c") {
+                            // XXX: We should only have - and > here when they need to be.
                             $mask = '->' . self::WHITESPACE;
                             if ($amp_cond) $mask .= '&';
                             if ($lt_cond)  $mask .= '<';
