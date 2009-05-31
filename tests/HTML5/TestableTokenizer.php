@@ -64,6 +64,7 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
                 $this->outputTokens[] = array('Comment', $token['data']);
                 break;
             case self::CHARACTER:
+            case self::SPACECHARACTER:
                 if (count($this->outputTokens)) {
                     $old = array_pop($this->outputTokens);
                     if ($old[0] === 'Character') {

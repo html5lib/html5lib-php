@@ -158,8 +158,7 @@ class HTML5_TreeConstructer {
 
         /* A character token that is one of U+0009 CHARACTER TABULATION,
          * U+000A LINE FEED (LF), U+000C FORM FEED (FF),  or U+0020 SPACE */
-        if ($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if ($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Ignore the token. */
             $this->ignored = true;
         } elseif ($token['type'] === HTML5_Tokenizer::DOCTYPE) {
@@ -356,8 +355,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
-        } elseif($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        } elseif($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Ignore the token. */
             $this->ignored = true;
 
@@ -391,8 +389,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Ignore the token. */
             $this->ignored = true;
 
@@ -465,8 +462,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE. */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Insert the character into the current node. */
             $this->insertText($token['data']);
 
@@ -600,8 +596,7 @@ class HTML5_TreeConstructer {
             array_pop($this->stack);
             $this->mode = self::IN_HEAD;
         } elseif (
-            ($token['type'] === HTML5_Tokenizer::CHARACTER &&
-                preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) ||
+            ($token['type'] === HTML5_Tokenizer::SPACECHARACTER) ||
             ($token['type'] === HTML5_Tokenizer::COMMENT) ||
             ($token['type'] === HTML5_Tokenizer::STARTTAG && (
                 $token['name'] === 'link' || $token['name'] === 'meta' ||
@@ -630,8 +625,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Append the character to the current node. */
             $this->insertText($token['data']);
 
@@ -702,6 +696,7 @@ class HTML5_TreeConstructer {
         switch($token['type']) {
             /* A character token */
             case HTML5_Tokenizer::CHARACTER:
+            case HTML5_Tokenizer::SPACECHARACTER:
                 /* Reconstruct the active formatting elements, if any. */
                 $this->reconstructActiveFormattingElements();
 
@@ -711,7 +706,10 @@ class HTML5_TreeConstructer {
                 /* If the token is not one of U+0009 CHARACTER TABULATION,
                  * U+000A LINE FEED (LF), U+000C FORM FEED (FF),  or U+0020
                  * SPACE, then set the frameset-ok flag to "not ok". */
-                // YYY: not implemented
+                // i.e., if any of the characters is not whitespace
+                if (strlen($token['data']) !== strspn($token['data'], HTML5_Tokenizer::WHITESPACE)) {
+                    $this->flag_frameset_ok = false;
+                }
             break;
 
             /* A comment token */
@@ -1893,7 +1891,10 @@ class HTML5_TreeConstructer {
         break;
 
     case self::IN_CDATA_RCDATA:
-        if ($token['type'] === HTML5_Tokenizer::CHARACTER) {
+        if (
+            $token['type'] === HTML5_Tokenizer::CHARACTER ||
+            $token['type'] === HTML5_Tokenizer::SPACECHARACTER
+        ) {
             $this->insertText($token['data']);
         } elseif ($token['type'] === HTML5_Tokenizer::EOF) {
             // parse error
@@ -1919,8 +1920,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']) &&
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER &&
         /* If the current table is tainted, then act as described in
          * the "anything else" entry below. */
         // Note: hsivonen has a test that fails due to this line
@@ -2142,8 +2142,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Append the character to the current node. */
             $this->insertText($token['data']);
 
@@ -2472,7 +2471,10 @@ class HTML5_TreeConstructer {
         /* Handle the token as follows: */
 
         /* A character token */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER) {
+        if(
+            $token['type'] === HTML5_Tokenizer::CHARACTER ||
+            $token['type'] === HTML5_Tokenizer::SPACECHARACTER
+        ) {
             /* Append the token's character to the current node. */
             $this->insertText($token['data']);
 
@@ -2669,8 +2671,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Process the token as it would be processed if the insertion mode
             was "in body". */
             $this->processWithRulesFor($token, self::IN_BODY);
@@ -2717,8 +2718,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         U+000D CARRIAGE RETURN (CR), or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Append the character to the current node. */
             $this->insertText($token['data']);
 
@@ -2790,8 +2790,7 @@ class HTML5_TreeConstructer {
         /* A character token that is one of one of U+0009 CHARACTER TABULATION,
         U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
         U+000D CARRIAGE RETURN (CR), or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data'])) {
+        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
             /* Append the character to the current node. */
             $this->insertText($token['data']);
 
@@ -2836,9 +2835,8 @@ class HTML5_TreeConstructer {
             $this->dom->appendChild($comment);
 
         } elseif($token['type'] === HTML5_Tokenizer::DOCTYPE ||
-        ($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']) ||
-        ($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html'))) {
+        $token['type'] === HTML5_Tokenizer::SPACECHARACTER ||
+        ($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html')) {
             $this->processWithRulesFor($token, self::IN_BODY);
 
         /* An end-of-file token */
@@ -2860,9 +2858,8 @@ class HTML5_TreeConstructer {
             $this->dom->appendChild($comment);
 
         } elseif($token['type'] === HTML5_Tokenizer::DOCTYPE ||
-        ($token['type'] === HTML5_Tokenizer::CHARACTER &&
-        preg_match('/^[\t\n\x0b\x0c ]+$/', $token['data']) ||
-        ($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html'))) {
+        $token['type'] === HTML5_Tokenizer::SPACECHARACTER ||
+        ($token['type'] === HTML5_Tokenizer::STARTTAG && $token['name'] === 'html')) {
             $this->processWithRulesFor($token, self::IN_BODY);
 
         /* An end-of-file token */

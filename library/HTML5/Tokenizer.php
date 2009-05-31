@@ -64,13 +64,14 @@ class HTML5_Tokenizer {
     // These are constants describing tokens
     // XXX should probably be moved somewhere else, probably the
     // HTML5 class.
-    const DOCTYPE    = 0;
-    const STARTTAG   = 1;
-    const ENDTAG     = 2;
-    const COMMENT    = 3;
-    const CHARACTER  = 4;
-    const EOF        = 5;
-    const PARSEERROR = 6;
+    const DOCTYPE        = 0;
+    const STARTTAG       = 1;
+    const ENDTAG         = 2;
+    const COMMENT        = 3;
+    const CHARACTER      = 4;
+    const SPACECHARACTER = 5;
+    const EOF            = 6;
+    const PARSEERROR     = 7;
 
     // These are constants representing bunches of characters.
     const ALPHA       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -116,8 +117,8 @@ class HTML5_Tokenizer {
         $escape = false;
         //echo "\n\n";
         while($state !== null) {
-            /*
-            echo $state . ' ';
+            
+            /*echo $state . ' ';
             switch ($this->content_model) {
                 case self::PCDATA: echo 'PCDATA'; break;
                 case self::RCDATA: echo 'RCDATA'; break;
@@ -125,13 +126,10 @@ class HTML5_Tokenizer {
                 case self::PLAINTEXT: echo 'PLAINTEXT'; break;
             }
             if ($escape) echo " escape";
-            echo "\n";
-             */
+            echo "\n";*/
+            
             switch($state) {
                 case 'data':
-
-                    // Possible optimization: mark text tokens that contain entirely
-                    // whitespace as whitespace tokens.
 
                     /* Consume the next input character */
                     $char = $this->stream->char();
@@ -234,6 +232,18 @@ class HTML5_Tokenizer {
                         $this->tree->emitToken(array(
                             'type' => self::EOF
                         ));
+                    
+                    } elseif($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
+                        // Directly after emitting a token you switch back to the "data
+                        // state". At that point spaceCharacters are important so they are
+                        // emitted separately.
+                        $chars = $this->stream->charsWhile(self::WHITESPACE);
+                        $this->emitToken(array(
+                            'type' => self::SPACECHARACTER,
+                            'data' => $char . $chars
+                        ));
+                        $lastFourChars .= $chars;
+                        if (strlen($lastFourChars) > 4) $lastFourChars = substr($lastFourChars, -4);
 
                     } else {
                         /* Anything else
@@ -241,17 +251,12 @@ class HTML5_Tokenizer {
                         otherwise would also be treated as a character token and emit it
                         as a single character token. Stay in the data state. */
                         $chars = '';
+                        // XXX: We should only have - and > here when they need to be.
+                        $mask = '->';
+                        if ($amp_cond) $mask .= '&';
+                        if ($lt_cond)  $mask .= '<';
 
-                        // XSKETCHY: introduced three more fails (at least)
-                        if ($char !== ' ' && $char !== "\n" && $char !== "\r" &&
-                        $char !== "\t" && $char !== "\x0c") {
-                            // XXX: We should only have - and > here when they need to be.
-                            $mask = '->' . self::WHITESPACE;
-                            if ($amp_cond) $mask .= '&';
-                            if ($lt_cond)  $mask .= '<';
-
-                            $chars = $this->stream->charsUntil($mask);
-                        }
+                        $chars = $this->stream->charsUntil($mask);
 
                         $this->emitToken(array(
                             'type' => self::CHARACTER,
@@ -259,6 +264,7 @@ class HTML5_Tokenizer {
                         ));
 
                         $lastFourChars .= $chars;
+                        if (strlen($lastFourChars) > 4) $lastFourChars = substr($lastFourChars, -4);
 
                         $state = 'data';
                     }
