@@ -137,6 +137,12 @@ class HTML5_Tokenizer {
                     if (strlen($lastFourChars) > 4) $lastFourChars = substr($lastFourChars, -4);
 
                     // see below for meaning
+                    $hyp_cond = 
+                        !$escape &&
+                        (
+                            $this->content_model === self::RCDATA ||
+                            $this->content_model === self::CDATA
+                        );
                     $amp_cond =
                         !$escape &&
                         (
@@ -152,6 +158,12 @@ class HTML5_Tokenizer {
                              ) &&
                              !$escape
                         );
+                    $gt_cond = 
+                        $escape &&
+                        (
+                            $this->content_model === self::RCDATA ||
+                            $this->content_model === self::CDATA
+                        );
 
                     if($char === '&' && $amp_cond) {
                         /* U+0026 AMPERSAND (&)
@@ -163,11 +175,7 @@ class HTML5_Tokenizer {
 
                     } elseif(
                         $char === '-' &&
-                        (
-                            $this->content_model === self::RCDATA ||
-                            $this->content_model === self::CDATA
-                        ) &&
-                        $escape === false &&
+                        $hyp_cond &&
                         $lastFourChars === '<!--'
                     ) {
                         /*
@@ -203,11 +211,7 @@ class HTML5_Tokenizer {
                     /* U+003E GREATER-THAN SIGN (>) */
                     } elseif(
                         $char === '>' &&
-                        (
-                            $this->content_model === self::RCDATA ||
-                            $this->content_model === self::CDATA
-                        ) &&
-                        $escape === true &&
+                        $gt_cond &&
                         substr($lastFourChars, 1) === '-->'
                     ) {
                         /* If the content model flag is set to either the RCDATA state or
@@ -250,13 +254,18 @@ class HTML5_Tokenizer {
                         THIS IS AN OPTIMIZATION: Get as many character that
                         otherwise would also be treated as a character token and emit it
                         as a single character token. Stay in the data state. */
-                        $chars = '';
-                        // XXX: We should only have - and > here when they need to be.
-                        $mask = '->';
+                        
+                        $mask = '';
+                        if ($hyp_cond) $mask .= '-';
                         if ($amp_cond) $mask .= '&';
                         if ($lt_cond)  $mask .= '<';
+                        if ($gt_cond)  $mask .= '>';
 
-                        $chars = $this->stream->charsUntil($mask);
+                        if ($mask === '') {
+                            $chars = $this->stream->remainingChars();
+                        } else {
+                            $chars = $this->stream->charsUntil($mask);
+                        }
 
                         $this->emitToken(array(
                             'type' => self::CHARACTER,
