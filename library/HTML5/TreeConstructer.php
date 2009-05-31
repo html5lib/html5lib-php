@@ -199,7 +199,8 @@ class HTML5_TreeConstructer {
                 $this->dom->appendChild($doctype);
             } else {
                 // It looks like libxml's not actually *able* to express this case.
-                // So... don't. XXX
+                // So... don't.
+                $this->dom->emptyDoctype = true;
             }
             $public = is_null($token['public']) ? false : strtolower($token['public']);
             $system = is_null($token['system']) ? false : strtolower($token['system']);

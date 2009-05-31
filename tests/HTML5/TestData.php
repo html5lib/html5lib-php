@@ -97,6 +97,8 @@ class HTML5_TestData
                         }
                         $subnode .= '>';
                         $subnodes[] = $subnode;
+                    } elseif (!empty($next->emptyDoctype)) {
+                        $subnodes = array('<!DOCTYPE >');
                     }
                     break;
                 case XML_TEXT_NODE:
