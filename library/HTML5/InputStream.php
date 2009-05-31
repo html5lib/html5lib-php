@@ -71,7 +71,7 @@ class HTML5_InputStream {
         // We previously had an mbstring implementation here, but that
         // implementation is heavily non-conforming, so it's been
         // omitted.
-        if (function_exists('iconv')) {
+        if (extension_loaded('iconv')) {
             // non-conforming
             $data = iconv('UTF-8', 'UTF-8//IGNORE', $data);
         } else {
@@ -220,18 +220,14 @@ class HTML5_InputStream {
     }
 
     /**
-     * Return some range of characters.
+     * Get all characters until EOF.
      * @note This performs bounds checking
-     * @param $l Length
      */
-    public function chars($l = 1) {
-        if((int) $l > 0 && $this->char < $this->EOF) {
-            $this->char += $l;
-            if($l === 1) {
-                return $this->data[$this->char];
-            } else {
-                return substr($this->data, $this->char, $l);
-            }
+    public function remainingChars() {
+        if($this->char < $this->EOF) {
+            $data = substr($this->data, $this->char);
+            $this->char = $this->EOF;
+            return $data;
         } else {
             return false;
         }
