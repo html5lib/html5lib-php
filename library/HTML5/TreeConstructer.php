@@ -1647,6 +1647,7 @@ class HTML5_TreeConstructer {
 
                             if($category !== self::PHRASING && $category !== self::FORMATTING) {
                                 $furthest_block = $this->stack[$s];
+                                break;
                             }
                         }
 
@@ -1693,8 +1694,7 @@ class HTML5_TreeConstructer {
                                 the stack of open elements and then go back
                                 to step 1. */
                                 if(!in_array($node, $this->a_formatting, true)) {
-                                    unset($this->stack[$n]);
-                                    $this->stack = array_merge($this->stack);
+                                    array_splice($this->stack, $n, 1);
 
                                 } else {
                                     break;
@@ -1783,11 +1783,10 @@ class HTML5_TreeConstructer {
                         into the list of active formatting elements at the
                         position of the aforementioned bookmark. */
                         $fe_af_pos = array_search($formatting_element, $this->a_formatting, true);
-                        unset($this->a_formatting[$fe_af_pos]);
-                        $this->a_formatting = array_merge($this->a_formatting);
+                        array_splice($this->a_formatting, $fe_af_pos, 1);
 
                         $af_part1 = array_slice($this->a_formatting, 0, $bookmark - 1);
-                        $af_part2 = array_slice($this->a_formatting, $bookmark, count($this->a_formatting));
+                        $af_part2 = array_slice($this->a_formatting, $bookmark);
                         $this->a_formatting = array_merge($af_part1, array($clone), $af_part2);
 
                         /* 12. Remove the formatting element from the stack
@@ -1795,11 +1794,11 @@ class HTML5_TreeConstructer {
                         of open elements immediately below the position of the
                         furthest block in that stack. */
                         $fe_s_pos = array_search($formatting_element, $this->stack, true);
-                        $fb_s_pos = array_search($furthest_block, $this->stack, true);
-                        unset($this->stack[$fe_s_pos]);
+                        array_splice($this->stack, $fe_s_pos, 1);
 
-                        $s_part1 = array_slice($this->stack, 0, $fb_s_pos);
-                        $s_part2 = array_slice($this->stack, $fb_s_pos + 1, count($this->stack));
+                        $fb_s_pos = array_search($furthest_block, $this->stack, true);
+                        $s_part1 = array_slice($this->stack, 0, $fb_s_pos + 1);
+                        $s_part2 = array_slice($this->stack, $fb_s_pos + 1);
                         $this->stack = array_merge($s_part1, array($clone), $s_part2);
 
                         /* 13. Jump back to step 1 in this series of steps. */
