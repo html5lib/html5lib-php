@@ -45,13 +45,6 @@ class HTML5_Tokenizer {
     private $tree;
 
     /**
-     * Escape flag as specified by the HTML5 specification: "used to
-     * control the behavior of the tokeniser. It is either true or
-     * false, and initially must be set to the false state."
-     */
-    private $escape = false;
-
-    /**
      * Current content model we are parsing as.
      */
     protected $content_model;
@@ -111,8 +104,16 @@ class HTML5_Tokenizer {
      * Performs the actual parsing of the document.
      */
     public function parse() {
+        // Current state
         $state = 'data';
+        // This is used to avoid having to have look-behind in the data state.
         $lastFourChars = '';
+        /**
+         * Escape flag as specified by the HTML5 specification: "used to
+         * control the behavior of the tokeniser. It is either true or
+         * false, and initially must be set to the false state."
+         */
+        $escape = false;
         //echo "\n\n";
         while($state !== null) {
             /*
@@ -123,7 +124,7 @@ class HTML5_Tokenizer {
                 case self::CDATA: echo 'CDATA'; break;
                 case self::PLAINTEXT: echo 'PLAINTEXT'; break;
             }
-            if ($this->escape) echo " escape";
+            if ($escape) echo " escape";
             echo "\n";
              */
             switch($state) {
@@ -139,7 +140,7 @@ class HTML5_Tokenizer {
 
                     // see below for meaning
                     $amp_cond =
-                        !$this->escape &&
+                        !$escape &&
                         (
                             $this->content_model === self::PCDATA ||
                             $this->content_model === self::RCDATA
@@ -151,7 +152,7 @@ class HTML5_Tokenizer {
                                 $this->content_model === self::RCDATA ||
                                 $this->content_model === self::CDATA
                              ) &&
-                             !$this->escape
+                             !$escape
                         );
 
                     if($char === '&' && $amp_cond) {
@@ -168,7 +169,7 @@ class HTML5_Tokenizer {
                             $this->content_model === self::RCDATA ||
                             $this->content_model === self::CDATA
                         ) &&
-                        $this->escape === false &&
+                        $escape === false &&
                         $lastFourChars === '<!--'
                     ) {
                         /*
@@ -179,7 +180,7 @@ class HTML5_Tokenizer {
                         last four characters in the input stream, including this one, are
                         U+003C LESS-THAN SIGN, U+0021 EXCLAMATION MARK, U+002D HYPHEN-MINUS,
                         and U+002D HYPHEN-MINUS ("<!--"), then set the escape flag to true. */
-                        $this->escape = true;
+                        $escape = true;
 
                         /* In any case, emit the input character as a character token. Stay
                         in the data state. */
@@ -208,7 +209,7 @@ class HTML5_Tokenizer {
                             $this->content_model === self::RCDATA ||
                             $this->content_model === self::CDATA
                         ) &&
-                        $this->escape === true &&
+                        $escape === true &&
                         substr($lastFourChars, 1) === '-->'
                     ) {
                         /* If the content model flag is set to either the RCDATA state or
@@ -216,7 +217,7 @@ class HTML5_Tokenizer {
                         characters in the input stream including this one are U+002D
                         HYPHEN-MINUS, U+002D HYPHEN-MINUS, U+003E GREATER-THAN SIGN ("-->"),
                         set the escape flag to false. */
-                        $this->escape = false;
+                        $escape = false;
 
                         /* In any case, emit the input character as a character token.
                         Stay in the data state. */
