@@ -70,14 +70,19 @@ class HTML5_TestData
     /**
      * Converts a DOMDocument into string form as seen in test cases.
      */
-    public static function strDom($dom, $prefix = '| ') {
+    public static function strDom($node, $prefix = '| ') {
         // XXX: Doesn't handle svg and math correctly
         $ret = array();
         $indent = 2;
         $level  = -1; // since DOMDocument doesn't get rendered
         $skip = false;
-        $next = $dom;
+        $next = $node;
         while ($next) {
+            if ($next instanceof DOMNodeList) {
+                if (!$next->length) break;
+                $next = $next->item(0);
+                $level = 0;
+            }
             $text = false;
             $subnodes = array();
             switch ($next->nodeType) {
@@ -130,6 +135,7 @@ class HTML5_TestData
                 $next = $next->parentNode;
                 $level--;
                 $skip = true;
+                if ($level < 0) break;
             } else {
                 $next = false;
             }

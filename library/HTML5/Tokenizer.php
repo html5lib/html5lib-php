@@ -96,6 +96,15 @@ class HTML5_Tokenizer {
         $this->content_model = self::PCDATA;
     }
 
+    public function parseFragment($context = null) {
+        $this->tree->setupContext($context);
+        if ($this->tree->content_model) {
+            $this->content_model = $this->tree->content_model;
+            $this->tree->content_model = null;
+        }
+        $this->parse();
+    }
+
     // XXX maybe convert this into an iterator? regardless, this function
     // and the save function should go into a Parser facade of some sort
     /**

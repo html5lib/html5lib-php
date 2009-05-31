@@ -5,7 +5,11 @@ require_once dirname(__FILE__) . '/../autorun.php';
 SimpleTest::ignore('HTML5_TreeBuilderHarness');
 class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
 {
-    public function assertIdentical($expect, $actual, $input = '%s') {
+    public function assertIdentical($expect, $actual, $test = array()) {
+        $input = $test['data'];
+        if (isset($test['document-fragment'])) {
+            $input .= "\nFragment: " . $test['document-fragment'];
+        }
         parent::assertIdentical($expect, $actual, "Identical expectation failed\nInput:\n$input\n\nExpected:\n$expect\n\nActual:\n$actual\n");
     }
     public function invoke($test) {
@@ -13,12 +17,16 @@ class HTML5_TreeBuilderHarness extends HTML5_TestDataHarness
         // for now we need testing
         $tokenizer = new HTML5_Tokenizer($test['data']);
         $GLOBALS['TIME'] -= get_microtime();
-        $tokenizer->parse();
+        if (isset($test['document-fragment'])) {
+            $tokenizer->parseFragment($test['document-fragment']);
+        } else {
+            $tokenizer->parse();
+        }
         $GLOBALS['TIME'] += get_microtime();
         $this->assertIdentical(
             $test['document'],
             HTML5_TestData::strDom($tokenizer->save()),
-            $test['data']
+            $test
         );
     }
 }

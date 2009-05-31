@@ -58,6 +58,8 @@ class HTML5_TreeConstructer {
     // code can check for (bool)$ignore_lf_token, but it phases out
     // appropriately)
     private $ignore_lf_token = 0;
+    private $fragment = false;
+    private $root;
 
     // XFOREIGN: SVG's foreignObject is included in scoping
     private $scoping = array('applet','button','caption','html','marquee','object','table','td','th');
@@ -1955,6 +1957,7 @@ class HTML5_TreeConstructer {
             scope with the same tag name as the token, this is a parse error.
             Ignore the token. (fragment case) */
             if(!$this->elementInScope($token['name'], true)) {
+                $this->ignored = true;
                 // Ignore
 
             /* Otherwise: */
@@ -2999,7 +3002,7 @@ class HTML5_TreeConstructer {
         }
     }
 
-    private function resetInsertionMode() {
+    private function resetInsertionMode($context = null) {
         /* 1. Let last be false. */
         $last = false;
         $leng = count($this->stack);
@@ -3008,16 +3011,16 @@ class HTML5_TreeConstructer {
             /* 2. Let node be the last node in the stack of open elements. */
             $node = $this->stack[$n];
 
-            /* 3. If node is the first node in the stack of open elements, then
-            set last to true. If the element whose innerHTML  attribute is being
-            set is neither a td  element nor a th element, then set node to the
-            element whose innerHTML  attribute is being set. (innerHTML  case) */
+            /* 3. If node is the first node in the stack of open elements, then 
+             * set last to true and set node to the context  element. (fragment 
+             * case) */
             if($this->stack[0]->isSameNode($node)) {
                 $last = true;
+                $node = $context;
             }
 
             /* 4. If node is a select element, then switch the insertion mode to
-            "in select" and abort these steps. (innerHTML case) */
+            "in select" and abort these steps. (fragment case) */
             if($node->tagName === 'select') {
                 $this->mode = self::IN_SELECT;
                 break;
@@ -3037,7 +3040,7 @@ class HTML5_TreeConstructer {
             /* 7. If node is a tbody, thead, or tfoot element, then switch the
             insertion mode to "in table body" and abort these steps. */
             } elseif(in_array($node->tagName, array('tbody', 'thead', 'tfoot'))) {
-                $this->mode = self::IN_TBODY;
+                $this->mode = self::IN_TABLE_BODY;
                 break;
 
             /* 8. If node is a caption element, then switch the insertion mode
@@ -3049,7 +3052,7 @@ class HTML5_TreeConstructer {
             /* 9. If node is a colgroup element, then switch the insertion mode
             to "in column group" and abort these steps. (innerHTML case) */
             } elseif($node->tagName === 'colgroup') {
-                $this->mode = self::IN_CGROUP;
+                $this->mode = self::IN_COLUMN_GROUP;
                 break;
 
             /* 10. If node is a table element, then switch the insertion mode
@@ -3058,38 +3061,44 @@ class HTML5_TreeConstructer {
                 $this->mode = self::IN_TABLE;
                 break;
 
-            /* 11. If node is a head element, then switch the insertion mode
+            /* 11. If node is an element from the MathML namespace or the SVG 
+             * namespace, then switch the insertion mode to "in foreign 
+             * content", let the secondary insertion mode be "in body", and 
+             * abort these steps. */
+            // XFOREIGN: implement me
+
+            /* 12. If node is a head element, then switch the insertion mode
             to "in body" ("in body"! not "in head"!) and abort these steps.
-            (innerHTML case) */
+            (fragment case) */
             } elseif($node->tagName === 'head') {
                 $this->mode = self::IN_BODY;
                 break;
 
-            /* 12. If node is a body element, then switch the insertion mode to
+            /* 13. If node is a body element, then switch the insertion mode to
             "in body" and abort these steps. */
             } elseif($node->tagName === 'body') {
                 $this->mode = self::IN_BODY;
                 break;
 
-            /* 13. If node is a frameset element, then switch the insertion
-            mode to "in frameset" and abort these steps. (innerHTML case) */
+            /* 14. If node is a frameset element, then switch the insertion
+            mode to "in frameset" and abort these steps. (fragment case) */
             } elseif($node->tagName === 'frameset') {
-                $this->mode = self::IN_FRAME;
+                $this->mode = self::IN_FRAMESET;
                 break;
 
-            /* 14. If node is an html element, then: if the head element
+            /* 15. If node is an html element, then: if the head element
             pointer is null, switch the insertion mode to "before head",
             otherwise, switch the insertion mode to "after head". In either
-            case, abort these steps. (innerHTML case) */
+            case, abort these steps. (fragment case) */
             } elseif($node->tagName === 'html') {
                 $this->mode = ($this->head_pointer === null)
-                    ? self::BEFOR_HEAD
+                    ? self::BEFORE_HEAD
                     : self::AFTER_HEAD;
 
                 break;
 
-            /* 15. If last is true, then set the insertion mode to "in body"
-            and    abort these steps. (innerHTML case) */
+            /* 16. If last is true, then set the insertion mode to "in body"
+            and    abort these steps. (fragment case) */
             } elseif($last) {
                 $this->mode = self::IN_BODY;
                 break;
@@ -3237,9 +3246,66 @@ class HTML5_TreeConstructer {
         return !empty($this->getCurrentTable()->tainted);
     }
 
+    /**
+     * Sets up the tree constructor for building a fragment.
+     */
+    public function setupContext($context = null) {
+        $this->fragment = true;
+        $context = $this->dom->createElement($context);
+        if ($context) {
+            /* 4.1. Set the HTML parser's tokenization  stage's content model
+             * flag according to the context element, as follows: */
+            switch ($context->tagName) {
+            case 'title': case 'textarea':
+                $this->content_model = HTML5_Tokenizer::RCDATA;
+                break;
+            case 'style': case 'script': case 'xmp': case 'iframe':
+            case 'noembed': case 'noframes':
+                $this->content_model = HTML5_Tokenizer::CDATA;
+                break;
+            case 'noscript':
+                // XSCRIPT: assuming scripting is enabled
+                $this->content_model = HTML5_Tokenizer::CDATA;
+                break;
+            case 'plaintext':
+                $this->content_model = HTML5_Tokenizer::PLAINTEXT;
+                break;
+            }
+            /* 4.2. Let root be a new html element with no attributes. */
+            $root = $this->dom->createElement('html');
+            $this->root = $root;
+            /* 4.3 Append the element root to the Document node created above. */
+            $this->dom->appendChild($root);
+            /* 4.4 Set up the parser's stack of open elements so that it 
+             * contains just the single element root. */
+            $this->stack = array($root);
+            /* 4.5 Reset the parser's insertion mode appropriately. */
+            $this->resetInsertionMode($context);
+            /* 4.6 Set the parser's form element pointer  to the nearest node 
+             * to the context element that is a form element (going straight up 
+             * the ancestor chain, and including the element itself, if it is a 
+             * form element), or, if there is no such form element, to null. */
+            $node = $context;
+            do {
+                if ($node->tagName === 'form') {
+                    $this->form_pointer = $node;
+                    break;
+                }
+            } while ($node = $node->parentNode);
+        }
+    }
+
 
     public function save() {
-        return $this->dom;
+        if (!$this->fragment) {
+            return $this->dom;
+        } else {
+            if ($this->root) {
+                return $this->root->childNodes;
+            } else {
+                return $this->dom->childNodes;
+            }
+        }
     }
 }
 
