@@ -29,7 +29,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Tags for FIX ME!!!: (in order of priority)
 //      XXX - should be fixed NAO!
 //      XFOREIGN - with regards to SVG and MathML
-//      XQUIRKS - with regards to quirks mode
 //      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
 //      XENCODING - with regards to encoding (for reparsing tests)
@@ -58,6 +57,8 @@ class HTML5_TreeConstructer {
     // code can check for (bool)$ignore_lf_token, but it phases out
     // appropriately)
     private $ignore_lf_token = 0;
+    private $fragment = false;
+    private $root;
 
     // XFOREIGN: SVG's foreignObject is included in scoping
     private $scoping = array('applet','button','caption','html','marquee','object','table','td','th');
@@ -201,14 +202,139 @@ class HTML5_TreeConstructer {
                 // It looks like libxml's not actually *able* to express this case.
                 // So... don't. XXX
             }
-            // XQUIRKS: Implement quirks mode
+            $public = is_null($token['public']) ? false : strtolower($token['public']);
+            $system = is_null($token['system']) ? false : strtolower($token['system']);
+            $publicStartsWithForQuirks = array(
+             "+//silmaril//dtd html pro v0r11 19970101//",
+             "-//advasoft ltd//dtd html 3.0 aswedit + extensions//",
+             "-//as//dtd html 3.0 aswedit + extensions//",
+             "-//ietf//dtd html 2.0 level 1//",
+             "-//ietf//dtd html 2.0 level 2//",
+             "-//ietf//dtd html 2.0 strict level 1//",
+             "-//ietf//dtd html 2.0 strict level 2//",
+             "-//ietf//dtd html 2.0 strict//",
+             "-//ietf//dtd html 2.0//",
+             "-//ietf//dtd html 2.1e//",
+             "-//ietf//dtd html 3.0//",
+             "-//ietf//dtd html 3.2 final//",
+             "-//ietf//dtd html 3.2//",
+             "-//ietf//dtd html 3//",
+             "-//ietf//dtd html level 0//",
+             "-//ietf//dtd html level 1//",
+             "-//ietf//dtd html level 2//",
+             "-//ietf//dtd html level 3//",
+             "-//ietf//dtd html strict level 0//",
+             "-//ietf//dtd html strict level 1//",
+             "-//ietf//dtd html strict level 2//",
+             "-//ietf//dtd html strict level 3//",
+             "-//ietf//dtd html strict//",
+             "-//ietf//dtd html//",
+             "-//metrius//dtd metrius presentational//",
+             "-//microsoft//dtd internet explorer 2.0 html strict//",
+             "-//microsoft//dtd internet explorer 2.0 html//",
+             "-//microsoft//dtd internet explorer 2.0 tables//",
+             "-//microsoft//dtd internet explorer 3.0 html strict//",
+             "-//microsoft//dtd internet explorer 3.0 html//",
+             "-//microsoft//dtd internet explorer 3.0 tables//",
+             "-//netscape comm. corp.//dtd html//",
+             "-//netscape comm. corp.//dtd strict html//",
+             "-//o'reilly and associates//dtd html 2.0//",
+             "-//o'reilly and associates//dtd html extended 1.0//",
+             "-//o'reilly and associates//dtd html extended relaxed 1.0//",
+             "-//spyglass//dtd html 2.0 extended//",
+             "-//sq//dtd html 2.0 hotmetal + extensions//",
+             "-//sun microsystems corp.//dtd hotjava html//",
+             "-//sun microsystems corp.//dtd hotjava strict html//",
+             "-//w3c//dtd html 3 1995-03-24//",
+             "-//w3c//dtd html 3.2 draft//",
+             "-//w3c//dtd html 3.2 final//",
+             "-//w3c//dtd html 3.2//",
+             "-//w3c//dtd html 3.2s draft//",
+             "-//w3c//dtd html 4.0 frameset//",
+             "-//w3c//dtd html 4.0 transitional//",
+             "-//w3c//dtd html experimental 19960712//",
+             "-//w3c//dtd html experimental 970421//",
+             "-//w3c//dtd w3 html//",
+             "-//w3o//dtd w3 html 3.0//",
+             "-//webtechs//dtd mozilla html 2.0//",
+             "-//webtechs//dtd mozilla html//",
+            );
+            $publicSetToForQuirks = array(
+             "-//w3o//dtd w3 html strict 3.0//",
+             "-/w3c/dtd html 4.0 transitional/en",
+             "html",
+            );
+            $publicStartsWithAndSystemForQuirks = array(
+             "-//w3c//dtd html 4.01 frameset//",
+             "-//w3c//dtd html 4.01 transitional//",
+            );
+            $publicStartsWithForLimitedQuirks = array(
+             "-//w3c//dtd xhtml 1.0 frameset//",
+             "-//w3c//dtd xhtml 1.0 transitional//",
+            );
+            $publicStartsWithAndSystemForLimitedQuirks = array(
+             "-//w3c//dtd html 4.01 frameset//",
+             "-//w3c//dtd html 4.01 transitional//",
+            );
+            // first, do easy checks
+            if (
+                !empty($token['force-quirks']) ||
+                strtolower($token['name']) !== 'html'
+            ) {
+                $this->quirks_mode = self::QUIRKS_MODE;
+            } else {
+                do {
+                    if ($system) {
+                        foreach ($publicStartsWithAndSystemForQuirks as $x) {
+                            if (strncmp($public, $x, strlen($x)) === 0) {
+                                $this->quirks_mode = self::QUIRKS_MODE;
+                                break;
+                            }
+                        }
+                        if (!is_null($this->quirks_mode)) break;
+                        foreach ($publicStartsWithAndSystemForLimitedQuirks as $x) {
+                            if (strncmp($public, $x, strlen($x)) === 0) {
+                                $this->quirks_mode = self::LIMITED_QUIRKS_MODE;
+                                break;
+                            }
+                        }
+                        if (!is_null($this->quirks_mode)) break;
+                    }
+                    foreach ($publicSetToForQuirks as $x) {
+                        if ($public === $x) {
+                            $this->quirks_mode = self::QUIRKS_MODE;
+                            break;
+                        }
+                    }
+                    if (!is_null($this->quirks_mode)) break;
+                    foreach ($publicStartsWithForLimitedQuirks as $x) {
+                        if (strncmp($public, $x, strlen($x)) === 0) {
+                            $this->quirks_mode = self::LIMITED_QUIRKS_MODE;
+                        }
+                    }
+                    if (!is_null($this->quirks_mode)) break;
+                    if ($system === "http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd") {
+                        $this->quirks_mode = self::QUIRKS_MODE;
+                        break;
+                    }
+                    foreach ($publicStartsWithForQuirks as $x) {
+                        if (strncmp($public, $x, strlen($x)) === 0) {
+                            $this->quirks_mode = self::QUIRKS_MODE;
+                            break;
+                        }
+                    }
+                    if (is_null($this->quirks_mode)) {
+                        $this->quirks_mode = self::NO_QUIRKS;
+                    }
+                } while (false);
+            }
             $this->mode = self::BEFORE_HTML;
         } else {
             // parse error
-            // XQUIRKS: Implement quirks mode
             /* Switch the insertion mode to "before html", then reprocess the
              * current token. */
             $this->mode = self::BEFORE_HTML;
+            $this->quirks_mode = self::QUIRKS_MODE;
             $this->emitToken($token);
         }
         break;
@@ -548,7 +674,7 @@ class HTML5_TreeConstructer {
              * stack of open elements. */
             $this->stack[] = $this->head_pointer;
             $this->processWithRulesFor($token, self::IN_HEAD);
-            array_pop($this->stack);
+            array_splice($this->stack, array_search($this->head_pointer, $this->stack, true), 1);
 
         // inversion of specification
         } elseif(
@@ -738,6 +864,7 @@ class HTML5_TreeConstructer {
                      * an authoring convenience.) */
                     $this->ignore_lf_token = 2;
                     $this->flag_frameset_ok = false;
+                break;
 
                 /* A start tag whose tag name is "form" */
                 case 'form':
@@ -976,10 +1103,10 @@ class HTML5_TreeConstructer {
 
                 /* A start tag whose tag name is "table" */
                 case 'table':
-                    // XQUIRKS: If NOT in quirks mode
                     /* If the stack of open elements has a p element in scope,
                     then act as if an end tag with the tag name p had been seen. */
-                    if($this->elementInScope('p')) {
+                    if($this->quirks_mode !== self::QUIRKS_MODE &&
+                    $this->elementInScope('p')) {
                         $this->emitToken(array(
                             'name' => 'p',
                             'type' => HTML5_Tokenizer::ENDTAG
@@ -1520,6 +1647,7 @@ class HTML5_TreeConstructer {
 
                             if($category !== self::PHRASING && $category !== self::FORMATTING) {
                                 $furthest_block = $this->stack[$s];
+                                break;
                             }
                         }
 
@@ -1566,8 +1694,7 @@ class HTML5_TreeConstructer {
                                 the stack of open elements and then go back
                                 to step 1. */
                                 if(!in_array($node, $this->a_formatting, true)) {
-                                    unset($this->stack[$n]);
-                                    $this->stack = array_merge($this->stack);
+                                    array_splice($this->stack, $n, 1);
 
                                 } else {
                                     break;
@@ -1656,11 +1783,10 @@ class HTML5_TreeConstructer {
                         into the list of active formatting elements at the
                         position of the aforementioned bookmark. */
                         $fe_af_pos = array_search($formatting_element, $this->a_formatting, true);
-                        unset($this->a_formatting[$fe_af_pos]);
-                        $this->a_formatting = array_merge($this->a_formatting);
+                        array_splice($this->a_formatting, $fe_af_pos, 1);
 
                         $af_part1 = array_slice($this->a_formatting, 0, $bookmark - 1);
-                        $af_part2 = array_slice($this->a_formatting, $bookmark, count($this->a_formatting));
+                        $af_part2 = array_slice($this->a_formatting, $bookmark);
                         $this->a_formatting = array_merge($af_part1, array($clone), $af_part2);
 
                         /* 12. Remove the formatting element from the stack
@@ -1668,11 +1794,11 @@ class HTML5_TreeConstructer {
                         of open elements immediately below the position of the
                         furthest block in that stack. */
                         $fe_s_pos = array_search($formatting_element, $this->stack, true);
-                        $fb_s_pos = array_search($furthest_block, $this->stack, true);
-                        unset($this->stack[$fe_s_pos]);
+                        array_splice($this->stack, $fe_s_pos, 1);
 
-                        $s_part1 = array_slice($this->stack, 0, $fb_s_pos);
-                        $s_part2 = array_slice($this->stack, $fb_s_pos + 1, count($this->stack));
+                        $fb_s_pos = array_search($furthest_block, $this->stack, true);
+                        $s_part1 = array_slice($this->stack, 0, $fb_s_pos + 1);
+                        $s_part2 = array_slice($this->stack, $fb_s_pos + 1);
                         $this->stack = array_merge($s_part1, array($clone), $s_part2);
 
                         /* 13. Jump back to step 1 in this series of steps. */
@@ -1954,6 +2080,7 @@ class HTML5_TreeConstructer {
             scope with the same tag name as the token, this is a parse error.
             Ignore the token. (fragment case) */
             if(!$this->elementInScope($token['name'], true)) {
+                $this->ignored = true;
                 // Ignore
 
             /* Otherwise: */
@@ -2988,9 +3115,9 @@ class HTML5_TreeConstructer {
         a table element or an html element, pop elements from the stack of open
         elements. */
         while(true) {
-            $node = end($this->stack)->tagName;
+            $name = end($this->stack)->tagName;
 
-            if(in_array($node, $elements)) {
+            if(in_array($name, $elements)) {
                 break;
             } else {
                 array_pop($this->stack);
@@ -2998,7 +3125,7 @@ class HTML5_TreeConstructer {
         }
     }
 
-    private function resetInsertionMode() {
+    private function resetInsertionMode($context = null) {
         /* 1. Let last be false. */
         $last = false;
         $leng = count($this->stack);
@@ -3007,16 +3134,16 @@ class HTML5_TreeConstructer {
             /* 2. Let node be the last node in the stack of open elements. */
             $node = $this->stack[$n];
 
-            /* 3. If node is the first node in the stack of open elements, then
-            set last to true. If the element whose innerHTML  attribute is being
-            set is neither a td  element nor a th element, then set node to the
-            element whose innerHTML  attribute is being set. (innerHTML  case) */
+            /* 3. If node is the first node in the stack of open elements, then 
+             * set last to true and set node to the context  element. (fragment 
+             * case) */
             if($this->stack[0]->isSameNode($node)) {
                 $last = true;
+                $node = $context;
             }
 
             /* 4. If node is a select element, then switch the insertion mode to
-            "in select" and abort these steps. (innerHTML case) */
+            "in select" and abort these steps. (fragment case) */
             if($node->tagName === 'select') {
                 $this->mode = self::IN_SELECT;
                 break;
@@ -3036,7 +3163,7 @@ class HTML5_TreeConstructer {
             /* 7. If node is a tbody, thead, or tfoot element, then switch the
             insertion mode to "in table body" and abort these steps. */
             } elseif(in_array($node->tagName, array('tbody', 'thead', 'tfoot'))) {
-                $this->mode = self::IN_TBODY;
+                $this->mode = self::IN_TABLE_BODY;
                 break;
 
             /* 8. If node is a caption element, then switch the insertion mode
@@ -3048,7 +3175,7 @@ class HTML5_TreeConstructer {
             /* 9. If node is a colgroup element, then switch the insertion mode
             to "in column group" and abort these steps. (innerHTML case) */
             } elseif($node->tagName === 'colgroup') {
-                $this->mode = self::IN_CGROUP;
+                $this->mode = self::IN_COLUMN_GROUP;
                 break;
 
             /* 10. If node is a table element, then switch the insertion mode
@@ -3057,38 +3184,44 @@ class HTML5_TreeConstructer {
                 $this->mode = self::IN_TABLE;
                 break;
 
-            /* 11. If node is a head element, then switch the insertion mode
+            /* 11. If node is an element from the MathML namespace or the SVG 
+             * namespace, then switch the insertion mode to "in foreign 
+             * content", let the secondary insertion mode be "in body", and 
+             * abort these steps. */
+            // XFOREIGN: implement me
+
+            /* 12. If node is a head element, then switch the insertion mode
             to "in body" ("in body"! not "in head"!) and abort these steps.
-            (innerHTML case) */
+            (fragment case) */
             } elseif($node->tagName === 'head') {
                 $this->mode = self::IN_BODY;
                 break;
 
-            /* 12. If node is a body element, then switch the insertion mode to
+            /* 13. If node is a body element, then switch the insertion mode to
             "in body" and abort these steps. */
             } elseif($node->tagName === 'body') {
                 $this->mode = self::IN_BODY;
                 break;
 
-            /* 13. If node is a frameset element, then switch the insertion
-            mode to "in frameset" and abort these steps. (innerHTML case) */
+            /* 14. If node is a frameset element, then switch the insertion
+            mode to "in frameset" and abort these steps. (fragment case) */
             } elseif($node->tagName === 'frameset') {
-                $this->mode = self::IN_FRAME;
+                $this->mode = self::IN_FRAMESET;
                 break;
 
-            /* 14. If node is an html element, then: if the head element
+            /* 15. If node is an html element, then: if the head element
             pointer is null, switch the insertion mode to "before head",
             otherwise, switch the insertion mode to "after head". In either
-            case, abort these steps. (innerHTML case) */
+            case, abort these steps. (fragment case) */
             } elseif($node->tagName === 'html') {
                 $this->mode = ($this->head_pointer === null)
-                    ? self::BEFOR_HEAD
+                    ? self::BEFORE_HEAD
                     : self::AFTER_HEAD;
 
                 break;
 
-            /* 15. If last is true, then set the insertion mode to "in body"
-            and    abort these steps. (innerHTML case) */
+            /* 16. If last is true, then set the insertion mode to "in body"
+            and    abort these steps. (fragment case) */
             } elseif($last) {
                 $this->mode = self::IN_BODY;
                 break;
@@ -3236,9 +3369,66 @@ class HTML5_TreeConstructer {
         return !empty($this->getCurrentTable()->tainted);
     }
 
+    /**
+     * Sets up the tree constructor for building a fragment.
+     */
+    public function setupContext($context = null) {
+        $this->fragment = true;
+        $context = $this->dom->createElement($context);
+        if ($context) {
+            /* 4.1. Set the HTML parser's tokenization  stage's content model
+             * flag according to the context element, as follows: */
+            switch ($context->tagName) {
+            case 'title': case 'textarea':
+                $this->content_model = HTML5_Tokenizer::RCDATA;
+                break;
+            case 'style': case 'script': case 'xmp': case 'iframe':
+            case 'noembed': case 'noframes':
+                $this->content_model = HTML5_Tokenizer::CDATA;
+                break;
+            case 'noscript':
+                // XSCRIPT: assuming scripting is enabled
+                $this->content_model = HTML5_Tokenizer::CDATA;
+                break;
+            case 'plaintext':
+                $this->content_model = HTML5_Tokenizer::PLAINTEXT;
+                break;
+            }
+            /* 4.2. Let root be a new html element with no attributes. */
+            $root = $this->dom->createElement('html');
+            $this->root = $root;
+            /* 4.3 Append the element root to the Document node created above. */
+            $this->dom->appendChild($root);
+            /* 4.4 Set up the parser's stack of open elements so that it 
+             * contains just the single element root. */
+            $this->stack = array($root);
+            /* 4.5 Reset the parser's insertion mode appropriately. */
+            $this->resetInsertionMode($context);
+            /* 4.6 Set the parser's form element pointer  to the nearest node 
+             * to the context element that is a form element (going straight up 
+             * the ancestor chain, and including the element itself, if it is a 
+             * form element), or, if there is no such form element, to null. */
+            $node = $context;
+            do {
+                if ($node->tagName === 'form') {
+                    $this->form_pointer = $node;
+                    break;
+                }
+            } while ($node = $node->parentNode);
+        }
+    }
+
 
     public function save() {
-        return $this->dom;
+        if (!$this->fragment) {
+            return $this->dom;
+        } else {
+            if ($this->root) {
+                return $this->root->childNodes;
+            } else {
+                return $this->dom->childNodes;
+            }
+        }
     }
 }
 
