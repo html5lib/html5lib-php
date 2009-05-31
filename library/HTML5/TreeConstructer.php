@@ -674,7 +674,7 @@ class HTML5_TreeConstructer {
              * stack of open elements. */
             $this->stack[] = $this->head_pointer;
             $this->processWithRulesFor($token, self::IN_HEAD);
-            array_pop($this->stack);
+            array_splice($this->stack, array_search($this->head_pointer, $this->stack, true), 1);
 
         // inversion of specification
         } elseif(

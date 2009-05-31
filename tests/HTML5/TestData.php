@@ -91,10 +91,8 @@ class HTML5_TestData
                     if ($next->doctype) {
                         $subnode = '<!DOCTYPE ';
                         $subnode .= $next->doctype->name;
-                        if ($next->doctype->publicId) {
+                        if ($next->doctype->publicId || $next->doctype->systemId) {
                             $subnode .= ' "' . $next->doctype->publicId . '"';
-                        }
-                        if ($next->doctype->systemId) {
                             $subnode .= ' "' . $next->doctype->systemId . '"';
                         }
                         $subnode .= '>';
