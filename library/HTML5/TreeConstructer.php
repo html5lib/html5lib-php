@@ -29,7 +29,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 // Tags for FIX ME!!!: (in order of priority)
 //      XXX - should be fixed NAO!
 //      XFOREIGN - with regards to SVG and MathML
-//      XQUIRKS - with regards to quirks mode
 //      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
 //      XENCODING - with regards to encoding (for reparsing tests)
@@ -203,14 +202,139 @@ class HTML5_TreeConstructer {
                 // It looks like libxml's not actually *able* to express this case.
                 // So... don't. XXX
             }
-            // XQUIRKS: Implement quirks mode
+            $public = is_null($token['public']) ? false : strtolower($token['public']);
+            $system = is_null($token['system']) ? false : strtolower($token['system']);
+            $publicStartsWithForQuirks = array(
+             "+//silmaril//dtd html pro v0r11 19970101//",
+             "-//advasoft ltd//dtd html 3.0 aswedit + extensions//",
+             "-//as//dtd html 3.0 aswedit + extensions//",
+             "-//ietf//dtd html 2.0 level 1//",
+             "-//ietf//dtd html 2.0 level 2//",
+             "-//ietf//dtd html 2.0 strict level 1//",
+             "-//ietf//dtd html 2.0 strict level 2//",
+             "-//ietf//dtd html 2.0 strict//",
+             "-//ietf//dtd html 2.0//",
+             "-//ietf//dtd html 2.1e//",
+             "-//ietf//dtd html 3.0//",
+             "-//ietf//dtd html 3.2 final//",
+             "-//ietf//dtd html 3.2//",
+             "-//ietf//dtd html 3//",
+             "-//ietf//dtd html level 0//",
+             "-//ietf//dtd html level 1//",
+             "-//ietf//dtd html level 2//",
+             "-//ietf//dtd html level 3//",
+             "-//ietf//dtd html strict level 0//",
+             "-//ietf//dtd html strict level 1//",
+             "-//ietf//dtd html strict level 2//",
+             "-//ietf//dtd html strict level 3//",
+             "-//ietf//dtd html strict//",
+             "-//ietf//dtd html//",
+             "-//metrius//dtd metrius presentational//",
+             "-//microsoft//dtd internet explorer 2.0 html strict//",
+             "-//microsoft//dtd internet explorer 2.0 html//",
+             "-//microsoft//dtd internet explorer 2.0 tables//",
+             "-//microsoft//dtd internet explorer 3.0 html strict//",
+             "-//microsoft//dtd internet explorer 3.0 html//",
+             "-//microsoft//dtd internet explorer 3.0 tables//",
+             "-//netscape comm. corp.//dtd html//",
+             "-//netscape comm. corp.//dtd strict html//",
+             "-//o'reilly and associates//dtd html 2.0//",
+             "-//o'reilly and associates//dtd html extended 1.0//",
+             "-//o'reilly and associates//dtd html extended relaxed 1.0//",
+             "-//spyglass//dtd html 2.0 extended//",
+             "-//sq//dtd html 2.0 hotmetal + extensions//",
+             "-//sun microsystems corp.//dtd hotjava html//",
+             "-//sun microsystems corp.//dtd hotjava strict html//",
+             "-//w3c//dtd html 3 1995-03-24//",
+             "-//w3c//dtd html 3.2 draft//",
+             "-//w3c//dtd html 3.2 final//",
+             "-//w3c//dtd html 3.2//",
+             "-//w3c//dtd html 3.2s draft//",
+             "-//w3c//dtd html 4.0 frameset//",
+             "-//w3c//dtd html 4.0 transitional//",
+             "-//w3c//dtd html experimental 19960712//",
+             "-//w3c//dtd html experimental 970421//",
+             "-//w3c//dtd w3 html//",
+             "-//w3o//dtd w3 html 3.0//",
+             "-//webtechs//dtd mozilla html 2.0//",
+             "-//webtechs//dtd mozilla html//",
+            );
+            $publicSetToForQuirks = array(
+             "-//w3o//dtd w3 html strict 3.0//",
+             "-/w3c/dtd html 4.0 transitional/en",
+             "html",
+            );
+            $publicStartsWithAndSystemForQuirks = array(
+             "-//w3c//dtd html 4.01 frameset//",
+             "-//w3c//dtd html 4.01 transitional//",
+            );
+            $publicStartsWithForLimitedQuirks = array(
+             "-//w3c//dtd xhtml 1.0 frameset//",
+             "-//w3c//dtd xhtml 1.0 transitional//",
+            );
+            $publicStartsWithAndSystemForLimitedQuirks = array(
+             "-//w3c//dtd html 4.01 frameset//",
+             "-//w3c//dtd html 4.01 transitional//",
+            );
+            // first, do easy checks
+            if (
+                !empty($token['force-quirks']) ||
+                strtolower($token['name']) !== 'html'
+            ) {
+                $this->quirks_mode = self::QUIRKS_MODE;
+            } else {
+                do {
+                    if ($system) {
+                        foreach ($publicStartsWithAndSystemForQuirks as $x) {
+                            if (strncmp($public, $x, strlen($x)) === 0) {
+                                $this->quirks_mode = self::QUIRKS_MODE;
+                                break;
+                            }
+                        }
+                        if (!is_null($this->quirks_mode)) break;
+                        foreach ($publicStartsWithAndSystemForLimitedQuirks as $x) {
+                            if (strncmp($public, $x, strlen($x)) === 0) {
+                                $this->quirks_mode = self::LIMITED_QUIRKS_MODE;
+                                break;
+                            }
+                        }
+                        if (!is_null($this->quirks_mode)) break;
+                    }
+                    foreach ($publicSetToForQuirks as $x) {
+                        if ($public === $x) {
+                            $this->quirks_mode = self::QUIRKS_MODE;
+                            break;
+                        }
+                    }
+                    if (!is_null($this->quirks_mode)) break;
+                    foreach ($publicStartsWithForLimitedQuirks as $x) {
+                        if (strncmp($public, $x, strlen($x)) === 0) {
+                            $this->quirks_mode = self::LIMITED_QUIRKS_MODE;
+                        }
+                    }
+                    if (!is_null($this->quirks_mode)) break;
+                    if ($system === "http://www.ibm.com/data/dtd/v11/ibmxhtml1-transitional.dtd") {
+                        $this->quirks_mode = self::QUIRKS_MODE;
+                        break;
+                    }
+                    foreach ($publicStartsWithForQuirks as $x) {
+                        if (strncmp($public, $x, strlen($x)) === 0) {
+                            $this->quirks_mode = self::QUIRKS_MODE;
+                            break;
+                        }
+                    }
+                    if (is_null($this->quirks_mode)) {
+                        $this->quirks_mode = self::NO_QUIRKS;
+                    }
+                } while (false);
+            }
             $this->mode = self::BEFORE_HTML;
         } else {
             // parse error
-            // XQUIRKS: Implement quirks mode
             /* Switch the insertion mode to "before html", then reprocess the
              * current token. */
             $this->mode = self::BEFORE_HTML;
+            $this->quirks_mode = self::QUIRKS_MODE;
             $this->emitToken($token);
         }
         break;
@@ -979,10 +1103,10 @@ class HTML5_TreeConstructer {
 
                 /* A start tag whose tag name is "table" */
                 case 'table':
-                    // XQUIRKS: If NOT in quirks mode
                     /* If the stack of open elements has a p element in scope,
                     then act as if an end tag with the tag name p had been seen. */
-                    if($this->elementInScope('p')) {
+                    if($this->quirks_mode !== self::QUIRKS_MODE &&
+                    $this->elementInScope('p')) {
                         $this->emitToken(array(
                             'name' => 'p',
                             'type' => HTML5_Tokenizer::ENDTAG
