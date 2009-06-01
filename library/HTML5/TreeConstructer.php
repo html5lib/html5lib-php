@@ -3330,6 +3330,7 @@ class HTML5_TreeConstructer {
             $node->namespaceURI === self::NS_MATHML) {
                 $this->mode = self::IN_FOREIGN_CONTENT;
                 $this->secondary_mode = self::IN_BODY;
+                break;
 
             /* 12. If node is a head element, then switch the insertion mode
             to "in body" ("in body"! not "in head"!) and abort these steps.
