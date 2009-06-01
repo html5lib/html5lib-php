@@ -3078,18 +3078,9 @@ class HTML5_TreeConstructer {
         node, it must instead be inserted into the foster parent element. */
         if(!$this->foster_parent || !in_array(end($this->stack)->tagName,
         array('table', 'tbody', 'tfoot', 'thead', 'tr'))) {
-            $this->appendChild(end($this->stack), $node);
+            end($this->stack)->appendChild($node);
         } else {
             $this->fosterParent($node);
-        }
-    }
-
-    private function appendChild($parent, $node) {
-        if ($node instanceof DOMText && $parent->lastChild instanceof DOMText) {
-            // attach text to previous node
-            $parent->lastChild->data .= $node->data;
-        } else {
-            $parent->appendChild($node);
         }
     }
 
@@ -3500,7 +3491,7 @@ class HTML5_TreeConstructer {
         if ($table->tagName === 'table' && $table->parentNode->isSameNode($foster_parent)) {
             $this->insertBefore($foster_parent, $node, $table);
         } else {
-            $this->appendChild($foster_parent, $node);
+            $foster_parent->appendChild($node);
         }
     }
 
@@ -3721,6 +3712,7 @@ class HTML5_TreeConstructer {
     }
 
     public function save() {
+        $this->dom->normalize();
         if (!$this->fragment) {
             return $this->dom;
         } else {
