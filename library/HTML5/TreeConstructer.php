@@ -2815,7 +2815,7 @@ class HTML5_TreeConstructer {
                 $token['name'] = $svg_lookup[$token['name']];
             }
             if ($current->namespaceURI === self::NS_SVG) {
-                $token = $This->adjustSVGAttributes($token);
+                $token = $this->adjustSVGAttributes($token);
             }
             $token = $this->adjustForeignAttributes($token);
             $this->insertForeignElement($token, $current->namespaceURI);
