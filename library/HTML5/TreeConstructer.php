@@ -3701,6 +3701,9 @@ class HTML5_TreeConstructer {
                     // XSKETCHY: work around godawful libxml bug
                     if ($ns === self::NS_XLINK) {
                         $el->setAttribute('xlink:'.$attr, $kp['value']);
+                    } elseif ($ns === self::NS_HTML) {
+                        // Another godawful libxml bug
+                        $el->setAttribute($attr, $kp['value']);
                     } else {
                         $el->setAttributeNS($ns, $attr, $kp['value']);
                     }
