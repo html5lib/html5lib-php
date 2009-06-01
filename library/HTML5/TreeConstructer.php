@@ -28,7 +28,6 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // Tags for FIX ME!!!: (in order of priority)
 //      XXX - should be fixed NAO!
-//      XFOREIGN - with regards to SVG and MathML
 //      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
 //      XENCODING - with regards to encoding (for reparsing tests)
@@ -39,6 +38,7 @@ class HTML5_TreeConstructer {
 
     private $mode;
     private $original_mode;
+    private $secondary_mode;
     private $dom;
     // Whether or not normal insertion of nodes should actually foster
     // parent (used in one case in spec)
@@ -60,8 +60,7 @@ class HTML5_TreeConstructer {
     private $fragment = false;
     private $root;
 
-    // XFOREIGN: SVG's foreignObject is included in scoping
-    private $scoping = array('applet','button','caption','html','marquee','object','table','td','th');
+    private $scoping = array('applet','button','caption','html','marquee','object','table','td','th', 'svg:foreignObject');
     private $formatting = array('a','b','big','code','em','font','i','nobr','s','small','strike','strong','tt','u');
     private $special = array('address','area','article','aside','base','basefont','bgsound',
     'blockquote','body','br','center','col','colgroup','command','dd','details','dialog','dir','div','dl',
@@ -120,6 +119,14 @@ class HTML5_TreeConstructer {
 
     // Marker to be placed in $a_formatting
     const MARKER     = 300;
+
+    // Namespaces for foreign content
+    const NS_HTML   = 'http://www.w3.org/1999/xhtml';
+    const NS_MATHML = 'http://www.w3.org/1998/Math/MathML';
+    const NS_SVG    = 'http://www.w3.org/2000/svg';
+    const NS_XLINK  = 'http://www.w3.org/1999/xlink';
+    const NS_XML    = 'http://www.w3.org/XML/1998/namespace';
+    const NS_XMLNS  = 'http://www.w3.org/2000/xmlns/';
 
     public function __construct() {
         $this->mode = self::INITIAL;
@@ -374,7 +381,7 @@ class HTML5_TreeConstructer {
         } else {
             /* Create an html element. Append it to the Document object. Put
              * this element in the stack of open elements. */
-            $html = $this->dom->createElement('html');
+            $html = $this->dom->createElementNS(self::NS_HTML, 'html');
             $this->dom->appendChild($html);
             $this->stack[] = $html;
 
@@ -1389,11 +1396,33 @@ class HTML5_TreeConstructer {
                 // spec diversion
 
                 case 'math':
-                    // XFOREIGN: not implemented
+                    $this->reconstructActiveFormattingElements();
+                    $token = $this->adjustMathMLAttributes($token);
+                    $token = $this->adjustForeignAttributes($token);
+                    $this->insertForeignElement($token, self::NS_MATHML);
+                    if (isset($token['self-closing'])) {
+                        // XERROR: acknowledge the token's self-closing flag
+                        array_pop($this->stack);
+                    }
+                    if ($this->mode !== self::IN_FOREIGN_CONTENT) {
+                        $this->secondary_mode = $this->mode;
+                        $this->mode = self::IN_FOREIGN_CONTENT;
+                    }
                 break;
 
                 case 'svg':
-                    // XFOREIGN: not implemented
+                    $this->reconstructActiveFormattingElements();
+                    $token = $this->adjustSVGAttributes($token);
+                    $token = $this->adjustForeignAttributes($token);
+                    $this->insertForeignElement($token, self::NS_SVG);
+                    if (isset($token['self-closing'])) {
+                        // XERROR: acknowledge the token's self-closing flag
+                        array_pop($this->stack);
+                    }
+                    if ($this->mode !== self::IN_FOREIGN_CONTENT) {
+                        $this->secondary_mode = $this->mode;
+                        $this->mode = self::IN_FOREIGN_CONTENT;
+                    }
                 break;
 
                 case 'caption': case 'col': case 'colgroup': case 'frame': case 'head':
@@ -2663,7 +2692,138 @@ class HTML5_TreeConstructer {
     break;
 
     case self::IN_FOREIGN_CONTENT:
-        // XFOREIGN: not implemented
+        if ($token['type'] === HTML5_Tokenizer::CHARACTER ||
+        $token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
+            $this->insertText($token['data']);
+        } elseif ($token['type'] === HTML5_Tokenizer::COMMENT) {
+            $this->insertComment($token['data']);
+        } elseif ($token['type'] === HTML5_Tokenizer::DOCTYPE) {
+            // XERROR: parse error
+        } elseif ($token['type'] === HTML5_Tokenizer::ENDTAG &&
+        $token['name'] === 'script' && end($this->stack)->tagName === 'script' &&
+        end($this->stack)->namespaceURI === self::NS_SVG) {
+            array_pop($this->stack);
+            // a bunch of script running mumbo jumbo
+        } elseif (
+            ($token['type'] === HTML5_Tokenizer::STARTTAG &&
+                ((
+                    $token['name'] !== 'mglyph' &&
+                    $token['name'] !== 'malignmark' &&
+                    end($this->stack)->namespaceURI === self::NS_MATHML &&
+                    in_array(end($this->stack)->tagName, array('mi', 'mo', 'mn', 'ms', 'mtext'))
+                ) ||
+                (
+                    $token['name'] === 'svg' &&
+                    end($this->stack)->namespaceURI === self::NS_MATHML &&
+                    end($this->stack)->tagName === 'annotation-xml'
+                ) ||
+                (
+                    end($this->stack)->namespaceURI === self::NS_SVG &&
+                    in_array(end($this->stack)->tagName, array('foreignObject', 'desc', 'title'))
+                ) ||
+                (
+                    // XSKETCHY
+                    end($this->stack)->namespaceURI === self::NS_HTML
+                ))
+            ) || $token['type'] === HTML5_Tokenizer::ENDTAG
+        ) {
+            $this->processWithRulesFor($token, $this->secondary_mode);
+            /* If, after doing so, the insertion mode is still "in foreign 
+             * content", but there is no element in scope that has a namespace 
+             * other than the HTML namespace, switch the insertion mode to the 
+             * secondary insertion mode. */
+            if ($this->mode === self::IN_FOREIGN_CONTENT) {
+                $found = false;
+                // this basically duplicates elementInScope()
+                for ($i = count($this->stack) - 1; $i >= 0; $i--) {
+                    $node = $this->stack[$i];
+                    if ($node->namespaceURI !== self::NS_HTML) {
+                        $found = true;
+                        break;
+                    } elseif (in_array($node->tagName, array('table', 'html',
+                    'applet', 'caption', 'td', 'th', 'button', 'marquee',
+                    'object')) || ($node->tagName === 'foreignObject' &&
+                    $node->namespaceURI === self::NS_SVG)) {
+                        break;
+                    }
+                }
+                if (!$found) {
+                    $this->mode = $this->secondary_mode;
+                }
+            }
+        } elseif ($token['type'] === HTML5_Tokenizer::EOF || (
+        $token['type'] === HTML5_Tokenizer::STARTTAG &&
+        (in_array($token['name'], array('b', "big", "blockquote", "body", "br", 
+        "center", "code", "dd", "div", "dl", "dt", "em", "embed", "h1", "h2", 
+        "h3", "h4", "h5", "h6", "head", "hr", "i", "img", "li", "listing", 
+        "menu", "meta", "nobr", "ol", "p", "pre", "ruby", "s",  "small", 
+        "span", "strong", "strike",  "sub", "sup", "table", "tt", "u", "ul", 
+        "var")) || ($token['name'] === 'font' && ($this->getAttr($token, 'color') ||
+        $this->getAttr($token, 'face') || $this->getAttr($token, 'size')))))) {
+            // XERROR: parse error
+            do {
+                $node = array_pop($this->stack);
+            } while ($node->namespaceURI !== self::NS_HTML);
+            $this->stack[] = $node;
+            $this->mode = $this->secondary_mode;
+            $this->emitToken($token);
+        } elseif ($token['type'] === HTML5_Tokenizer::STARTTAG) {
+            static $svg_lookup = array(
+                'altglyph' => 'altGlyph',
+                'altglyphdef' => 'altGlyphDef',
+                'altglyphitem' => 'altGlyphItem',
+                'animatecolor' => 'animateColor',
+                'animatemotion' => 'animateMotion',
+                'animatetransform' => 'animateTransform',
+                'clippath' => 'clipPath',
+                'feblend' => 'feBlend',
+                'fecolormatrix' => 'feColorMatrix',
+                'fecomponenttransfer' => 'feComponentTransfer',
+                'fecomposite' => 'feComposite',
+                'feconvolvematrix' => 'feConvolveMatrix',
+                'fediffuselighting' => 'feDiffuseLighting',
+                'fedisplacementmap' => 'feDisplacementMap',
+                'fedistantlight' => 'feDistantLight',
+                'feflood' => 'feFlood',
+                'fefunca' => 'feFuncA',
+                'fefuncb' => 'feFuncB',
+                'fefuncg' => 'feFuncG',
+                'fefuncr' => 'feFuncR',
+                'fegaussianblur' => 'feGaussianBlur',
+                'feimage' => 'feImage',
+                'femerge' => 'feMerge',
+                'femergenode' => 'feMergeNode',
+                'femorphology' => 'feMorphology',
+                'feoffset' => 'feOffset',
+                'fepointlight' => 'fePointLight',
+                'fespecularlighting' => 'feSpecularLighting',
+                'fespotlight' => 'feSpotLight',
+                'fetile' => 'feTile',
+                'feturbulence' => 'feTurbulence',
+                'foreignobject' => 'foreignObject',
+                'glyphref' => 'glyphRef',
+                'lineargradient' => 'linearGradient',
+                'radialgradient' => 'radialGradient',
+                'textpath' => 'textPath',
+            );
+            $current = end($this->stack);
+            if ($current->namespaceURI === self::NS_MATHML) {
+                $token = $this->adjustMathMLAttributes($token);
+            }
+            if ($current->namespaceURI === self::NS_SVG &&
+            isset($svg_lookup[$token['name']])) {
+                $token['name'] = $svg_lookup[$token['name']];
+            }
+            if ($current->namespaceURI === self::NS_SVG) {
+                $token = $This->adjustSVGAttributes($token);
+            }
+            $token = $this->adjustForeignAttributes($token);
+            $this->insertForeignElement($token, $current->namespaceURI);
+            if (isset($token['self-closing'])) {
+                array_pop($this->stack);
+                // XERROR: acknowledge self-closing flag
+            }
+        }
     break;
 
     case self::AFTER_BODY:
@@ -2877,7 +3037,7 @@ class HTML5_TreeConstructer {
         }
 
     private function insertElement($token, $append = true) {
-        $el = $this->dom->createElement($token['name']);
+        $el = $this->dom->createElementNS(self::NS_HTML, $token['name']);
 
         if (!empty($token['attr'])) {
             foreach($token['attr'] as $attr) {
@@ -2973,8 +3133,10 @@ class HTML5_TreeConstructer {
                 return false;
 
             // these are only valid for "in scope"
-            } elseif(!$table && in_array($node->tagName, array('applet', 'caption', 'td',
-            'th', 'button', 'marquee', 'object'))) { // XFOREIGN: foreignObject needed
+            } elseif(!$table &&
+            (in_array($node->tagName, array('applet', 'caption', 'td',
+                'th', 'button', 'marquee', 'object')) ||
+                $node->tagName === 'foreignObject' && $node->namespaceURI === self::NS_SVG)) {
                 return false;
             }
 
@@ -3186,7 +3348,10 @@ class HTML5_TreeConstructer {
              * namespace, then switch the insertion mode to "in foreign 
              * content", let the secondary insertion mode be "in body", and 
              * abort these steps. */
-            // XFOREIGN: implement me
+            } elseif($node->namespaceURI === self::NS_SVG ||
+            $node->namespaceURI === self::NS_MATHML) {
+                $this->mode = self::IN_FOREIGN_CONTENT;
+                $this->secondary_mode = self::IN_BODY;
 
             /* 12. If node is a head element, then switch the insertion mode
             to "in body" ("in body"! not "in head"!) and abort these steps.
@@ -3372,7 +3537,7 @@ class HTML5_TreeConstructer {
      */
     public function setupContext($context = null) {
         $this->fragment = true;
-        $context = $this->dom->createElement($context);
+        $context = $this->dom->createElementNS(self::NS_HTML, $context);
         if ($context) {
             /* 4.1. Set the HTML parser's tokenization  stage's content model
              * flag according to the context element, as follows: */
@@ -3393,7 +3558,7 @@ class HTML5_TreeConstructer {
                 break;
             }
             /* 4.2. Let root be a new html element with no attributes. */
-            $root = $this->dom->createElement('html');
+            $root = $this->dom->createElementNS(self::NS_HTML, 'html');
             $this->root = $root;
             /* 4.3 Append the element root to the Document node created above. */
             $this->dom->appendChild($root);
@@ -3416,6 +3581,141 @@ class HTML5_TreeConstructer {
         }
     }
 
+    public function adjustMathMLAttributes($token) {
+        foreach ($token['attr'] as &$kp) {
+            if ($kp['name'] === 'definitionurl') {
+                $kp['name'] = 'definitionURL';
+            }
+        }
+        return $token;
+    }
+
+    public function adjustSVGAttributes($token) {
+        static $lookup = array(
+            'attributename' => 'attributeName',
+            'attributetype' => 'attributeType',
+            'basefrequency' => 'baseFrequency',
+            'baseprofile' => 'baseProfile',
+            'calcmode' => 'calcMode',
+            'clippathunits' => 'clipPathUnits',
+            'contentscripttype' => 'contentScriptType',
+            'contentstyletype' => 'contentStyleType',
+            'diffuseconstant' => 'diffuseConstant',
+            'edgemode' => 'edgeMode',
+            'externalresourcesrequired' => 'externalResourcesRequired',
+            'filterres' => 'filterRes',
+            'filterunits' => 'filterUnits',
+            'glyphref' => 'glyphRef',
+            'gradienttransform' => 'gradientTransform',
+            'gradientunits' => 'gradientUnits',
+            'kernelmatrix' => 'kernelMatrix',
+            'kernelunitlength' => 'kernelUnitLength',
+            'keypoints' => 'keyPoints',
+            'keysplines' => 'keySplines',
+            'keytimes' => 'keyTimes',
+            'lengthadjust' => 'lengthAdjust',
+            'limitingconeangle' => 'limitingConeAngle',
+            'markerheight' => 'markerHeight',
+            'markerunits' => 'markerUnits',
+            'markerwidth' => 'markerWidth',
+            'maskcontentunits' => 'maskContentUnits',
+            'maskunits' => 'maskUnits',
+            'numoctaves' => 'numOctaves',
+            'pathlength' => 'pathLength',
+            'patterncontentunits' => 'patternContentUnits',
+            'patterntransform' => 'patternTransform',
+            'patternunits' => 'patternUnits',
+            'pointsatx' => 'pointsAtX',
+            'pointsaty' => 'pointsAtY',
+            'pointsatz' => 'pointsAtZ',
+            'preservealpha' => 'preserveAlpha',
+            'preserveaspectratio' => 'preserveAspectRatio',
+            'primitiveunits' => 'primitiveUnits',
+            'refx' => 'refX',
+            'refy' => 'refY',
+            'repeatcount' => 'repeatCount',
+            'repeatdur' => 'repeatDur',
+            'requiredextensions' => 'requiredExtensions',
+            'requiredfeatures' => 'requiredFeatures',
+            'specularconstant' => 'specularConstant',
+            'specularexponent' => 'specularExponent',
+            'spreadmethod' => 'spreadMethod',
+            'startoffset' => 'startOffset',
+            'stddeviation' => 'stdDeviation',
+            'stitchtiles' => 'stitchTiles',
+            'surfacescale' => 'surfaceScale',
+            'systemlanguage' => 'systemLanguage',
+            'tablevalues' => 'tableValues',
+            'targetx' => 'targetX',
+            'targety' => 'targetY',
+            'textlength' => 'textLength',
+            'viewbox' => 'viewBox',
+            'viewtarget' => 'viewTarget',
+            'xchannelselector' => 'xChannelSelector',
+            'ychannelselector' => 'yChannelSelector',
+            'zoomandpan' => 'zoomAndPan',
+        );
+        foreach ($token['attr'] as &$kp) {
+            if (isset($lookup[$kp['name']])) {
+                $kp['name'] = $lookup[$kp['name']];
+            }
+        }
+        return $token;
+    }
+
+    public function adjustForeignAttributes($token) {
+        static $lookup = array(
+            'xlink:actuate' => array('xlink', 'actuate', self::NS_XLINK),
+            'xlink:arcrole' => array('xlink', 'arcrole', self::NS_XLINK),
+            'xlink:href' => array('xlink', 'href', self::NS_XLINK),
+            'xlink:role' => array('xlink', 'role', self::NS_XLINK),
+            'xlink:show' => array('xlink', 'show', self::NS_XLINK),
+            'xlink:title' => array('xlink', 'title', self::NS_XLINK),
+            'xlink:type' => array('xlink', 'type', self::NS_XLINK),
+            'xml:base' => array('xml', 'base', self::NS_XML),
+            'xml:lang' => array('xml', 'lang', self::NS_XML),
+            'xml:space' => array('xml', 'space', self::NS_XML),
+            'xmlns' => array(null, 'xmlns', self::NS_XMLNS),
+            'xmlns:xlink' => array('xmlns', 'xlink', self::NS_XMLNS),
+        );
+        foreach ($token['attr'] as &$kp) {
+            if (isset($lookup[$kp['name']])) {
+                $kp['name'] = $lookup[$kp['name']];
+            }
+        }
+        return $token;
+    }
+
+    public function insertForeignElement($token, $namespaceURI) {
+        $el = $this->dom->createElementNS($namespaceURI, $token['name']);
+        if (!empty($token['attr'])) {
+            foreach ($token['attr'] as $kp) {
+                $attr = $kp['name'];
+                if (is_array($attr)) {
+                    $ns = $attr[2];
+                    $attr = $attr[1];
+                } else {
+                    $ns = self::NS_HTML;
+                }
+                if (!$el->hasAttributeNS($ns, $attr)) {
+                    // XSKETCHY: work around godawful libxml bug
+                    if ($ns === self::NS_XLINK) {
+                        $el->setAttribute('xlink:'.$attr, $kp['value']);
+                    } else {
+                        $el->setAttributeNS($ns, $attr, $kp['value']);
+                    }
+                }
+            }
+        }
+        $this->appendToRealParent($el);
+        $this->stack[] = $el;
+        // XERROR: see below
+        /* If the newly created element has an xmlns attribute in the XMLNS 
+         * namespace  whose value is not exactly the same as the element's 
+         * namespace, that is a parse error. Similarly, if the newly created 
+         * element has an xmlns:xlink attribute in the XMLNS namespace whose 
+         * value is not the XLink Namespace, that is a parse error. */
+    }
 
     public function save() {
         if (!$this->fragment) {

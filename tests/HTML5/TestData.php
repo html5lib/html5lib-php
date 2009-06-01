@@ -25,7 +25,7 @@ class HTML5_TestData
             if ($type === 'tree-construction') {
                 // skip XFOREIGN tests for now
                 $num = (int) substr($name, 5);
-                if ($num >= 9) continue;
+                if ($num >= 10) continue;
             }
             $pfilename = var_export($filename, true);
             $code = "class $prefix$name extends $base { public \$filename = $pfilename; }";
@@ -108,9 +108,31 @@ class HTML5_TestData
                     $text = "<!-- {$next->data} -->";
                     break;
                 case XML_ELEMENT_NODE:
-                    $text = "<{$next->tagName}>";
+                    $ns = '';
+                    switch ($next->namespaceURI) {
+                    case HTML5_TreeConstructer::NS_MATHML:
+                        $ns = 'math '; break;
+                    case HTML5_TreeConstructer::NS_SVG:
+                        $ns = 'svg '; break;
+                    }
+                    $text = "<{$ns}{$next->tagName}>";
                     foreach ($next->attributes as $attr) {
-                        $subnodes[] = "{$attr->name}=\"{$attr->value}\"";
+                        $ans = '';
+                        switch ($attr->namespaceURI) {
+                        case HTML5_TreeConstructer::NS_MATHML:
+                            $ans = 'math '; break;
+                        case HTML5_TreeConstructer::NS_SVG:
+                            $ans = 'svg '; break;
+                        case HTML5_TreeConstructer::NS_XLINK:
+                            $ans = 'xlink '; break;
+                        case HTML5_TreeConstructer::NS_XML:
+                            $ans = 'xml '; break;
+                        case HTML5_TreeConstructer::NS_XMLNS:
+                            $ans = 'xmlns '; break;
+                        }
+                        // XSKETCHY: needed for our horrible xlink hack
+                        $name = str_replace(':', ' ', $attr->localName);
+                        $subnodes[] = "{$ans}{$name}=\"{$attr->value}\"";
                     }
                     sort($subnodes);
                     break;
