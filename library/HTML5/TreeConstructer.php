@@ -1612,7 +1612,7 @@ class HTML5_TreeConstructer {
 
                 /* An end tag whose tag name is one of: "a", "b", "big", "em",
                 "font", "i", "nobr", "s", "small", "strike", "strong", "tt", "u" */
-                case 'a': case 'b': case 'big': case 'em': case 'font':
+                case 'a': case 'b': case 'big': case 'code': case 'em': case 'font':
                 case 'i': case 'nobr': case 's': case 'small': case 'strike':
                 case 'strong': case 'tt': case 'u':
                     // XERROR: generally speaking this needs parse error logic
