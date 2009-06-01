@@ -10,26 +10,51 @@ abstract class HTML5_TokenizerHarness extends HTML5_JSONHarness
         if (!isset($test->contentModelFlags)) {
             $test->contentModelFlags = array('PCDATA');
         }
-        foreach ($test->contentModelFlags as $flag) {
-            $result = $this->tokenize($test, $flag);
-            $expect = array();
-            $last = null;
-            foreach ($test->output as $tok) {
+        if (!isset($test->ignoreErrorOrder)) {
+            $test->ignoreErrorOrder = false;
+        }
+        
+        // Get expected result array (and maybe error count).
+        $expect = array();
+        $expectedErrorCount = 0; // This is only used when ignoreErrorOrder = true.
+        foreach ($test->output as $tok) {
+            // If we're ignoring error order and this is a parse error, just count.
+            if ($test->ignoreErrorOrder && $tok === 'ParseError') {
+                $expectedErrorCount++;
+            } else {
                 // Normalize character tokens from the test
-                if ($tok[0] === 'Character' && $last[0] === 'Character') {
-                    $last[1] .= $tok[1];
-                    continue;
+                if ($expect && $tok[0] === 'Character' && $expect[count($expect) - 1][0] === 'Character') {
+                    $expect[count($expect) - 1][1] .= $tok[1];
+                } else {
+                    $expect[] = $tok;
                 }
-                // XXX we should also normalize our results... somewhere
-                // (probably not here)
-                $expect[] = $tok;
-                $last =& $expect[count($expect) - 1];
+            }
+        }
+        
+        // Run test for each content model flag.
+        foreach ($test->contentModelFlags as $flag) {
+            $output = $this->tokenize($test, $flag);
+            $result = array();
+            $resultErrorCount = 0; // This is only used when ignoreErrorOrder = true.
+            foreach ($output as $tok) {
+                // If we're ignoring error order and this is a parse error, just count.
+                if ($test->ignoreErrorOrder && $tok === 'ParseError') {
+                    $resultErrorCount++;
+                } else {
+                    $result[] = $tok;
+                }
             }
             $this->assertIdentical($expect, $result,
                 'In test "'.str_replace('%', '%%', $test->description).
                 '" with content model '.$flag.': %s'
             );
-            if ($expect != $result) {
+            if ($test->ignoreErrorOrder) {
+                $this->assertIdentical($expectedErrorCount, $resultErrorCount,
+                    'Wrong error count in test "'.str_replace('%', '%%', $test->description).
+                    '" with content model '.$flag.': %s'
+                );
+            }
+            if ($expect != $result || ($test->ignoreErrorOrder && $expectedErrorCount !== $resultErrorCount)) {
                 echo "Input: "; str_dump($test->input);
                 echo "\nExpected: \n"; echo $this->tokenDump($expect);
                 echo "\nActual: \n"; echo $this->tokenDump($result);
