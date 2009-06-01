@@ -73,7 +73,7 @@ class HTML5_InputStream {
         // omitted.
         if (extension_loaded('iconv')) {
             // non-conforming
-            $data = iconv('UTF-8', 'UTF-8//IGNORE', $data);
+            $data = @iconv('UTF-8', 'UTF-8//IGNORE', $data);
         } else {
             // we can make a conforming native implementation
             throw new Exception('Not implemented, please install mbstring or iconv');
