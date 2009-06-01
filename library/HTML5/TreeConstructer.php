@@ -3084,19 +3084,6 @@ class HTML5_TreeConstructer {
         }
     }
 
-    private function insertBefore($parent, $node, $marker) {
-        if ($node instanceof DOMText) {
-            if ($marker instanceof DOMText) {
-                $marker->data = $node->data . $marker->data;
-                return;
-            } elseif ($marker->previousSibling && $marker->previousSibling instanceof DOMText) {
-                $marker->previousSibling->data .= $node->data;
-                return;
-            }
-        }
-        $parent->insertBefore($node, $marker);
-    }
-
     private function elementInScope($el, $table = false) {
         if(is_array($el)) {
             foreach($el as $element) {
@@ -3489,7 +3476,7 @@ class HTML5_TreeConstructer {
          * elements in the foster parent element; otherwise, node must be 
          * appended to the foster parent element. */
         if ($table->tagName === 'table' && $table->parentNode->isSameNode($foster_parent)) {
-            $this->insertBefore($foster_parent, $node, $table);
+            $foster_parent->insertBefore($node, $table);
         } else {
             $foster_parent->appendChild($node);
         }
