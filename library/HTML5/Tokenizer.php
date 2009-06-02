@@ -2197,21 +2197,32 @@ class HTML5_Tokenizer {
             with the consumed characters matching one of the
             identifiers in the first column of the named character
             references table (in a case-sensitive manner). */
-
-            // we will implement this by matching the longest
-            // alphanumeric + semicolon string, and then working
-            // our way backwards
-            $chars .= $this->stream->charsWhile(self::DIGIT . self::ALPHA . ';', HTML5_Data::getNamedCharacterReferenceMaxLength() - 1);
-            $len = strlen($chars);
+            // What we actually do here is consume as much as we can while it
+            // matches the start of one of the identifiers in the first column.
 
             $refs = HTML5_Data::getNamedCharacterReferences();
+            
+            // Get the longest string which is the start of an identifier
+            // ($chars) as well as the longest identifier which matches ($id)
+            // and its codepoint ($codepoint).
             $codepoint = false;
-            for($c = $len; $c > 0; $c--) {
-                $id = substr($chars, 0, $c);
-                if(isset($refs[$id])) {
-                    $codepoint = $refs[$id];
-                    break;
+            $char = $chars;
+            while ($char !== false && isset($refs[$char])) {
+                $refs = $refs[$char];
+                if (isset($refs['codepoint'])) {
+                    $id = $chars;
+                    $codepoint = $refs['codepoint'];
                 }
+                $chars .= $char = $this->stream->char();
+            }
+            
+            // Unconsume the one character we just took which caused the while
+            // statement to fail. This could be anything and could cause state
+            // changes (as if it matches the while loop it must be
+            // alphanumeric so we can just concat it to whatever we get later).
+            $this->stream->unget();
+            if ($char !== false) {
+                $chars = substr($chars, 0, -1);
             }
 
             /* If no match can be made, then this is a parse error.
@@ -2235,7 +2246,6 @@ class HTML5_Tokenizer {
                 $semicolon = false;
             }
 
-
             /* If the character reference is being consumed as part of
             an attribute, and the last character matched is not a
             U+003B SEMICOLON (;), and the next character is in the
@@ -2245,17 +2255,27 @@ class HTML5_Tokenizer {
             then, for historical reasons, all the characters that were
             matched after the U+0026 AMPERSAND (&) must be unconsumed,
             and nothing is returned. */
-            if (
-                $inattr && !$semicolon &&
-                strspn(substr($chars, $c, 1), self::ALPHA . self::DIGIT)
-            ) {
-                return '&' . $chars;
+            if ($inattr && !$semicolon) {
+                // The next character is either the next character in $chars or in the stream.
+                if (strlen($chars) > strlen($id)) {
+                    $next = substr($chars, strlen($id), 1);
+                } else {
+                    $next = $this->stream->char();
+                    $this->stream->unget();
+                }
+                if (
+                    '0' <= $next && $next <= '9' ||
+                    'A' <= $next && $next <= 'Z' ||
+                    'a' <= $next && $next <= 'z'
+                ) {
+                    return '&' . $chars;
+                }
             }
 
             /* Otherwise, return a character token for the character
             corresponding to the character reference name (as given
             by the second column of the named character references table). */
-            return HTML5_Data::utf8chr($codepoint) . substr($chars, $c);
+            return HTML5_Data::utf8chr($codepoint) . substr($chars, strlen($id));
         }
     }
 

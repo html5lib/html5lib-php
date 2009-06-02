@@ -65,16 +65,6 @@ class HTML5_Data
         return self::$namedCharacterReferences;
     }
 
-    public static function getNamedCharacterReferenceMaxLength() {
-        if (!self::$namedCharacterReferenceMaxLength) {
-            $namedCharacterReferences = self::getNamedCharacterReferences();
-            $lengths = array_map('strlen', array_keys($namedCharacterReferences));
-            self::$namedCharacterReferenceMaxLength = max($lengths);
-        }
-        return self::$namedCharacterReferenceMaxLength;
-    }
-
-
     /**
      * Converts a Unicode codepoint to sequence of UTF-8 bytes.
      * @note Shamelessly stolen from HTML Purifier, which is also

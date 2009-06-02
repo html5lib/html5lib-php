@@ -12,19 +12,36 @@ if (file_exists($output)) {
 }
 
 $url = 'http://www.whatwg.org/specs/web-apps/current-work/multipage/named-character-references.html';
-$request = new HttpRequest($url);
-$request->send();
-$html = $request->getResponseBody();
+if (extension_loaded('pecl_http')) {
+    $request = new HttpRequest($url);
+    $request->send();
+    $html = $request->getResponseBody();
+} else {
+    $html = file_get_contents($url);
+}
 
 preg_match_all(
-    '#<code title="">\s*([^<]+?)\s*</code>\s*</td>\s*<td>\s*U+([^<]+?)\s*<#',
+    '#<code title="">\s*([^<]+?)\s*</code>\s*</td>\s*<td>\s*U\+([^<]+?)\s*<#',
     $html, $matches, PREG_SET_ORDER);
 
 $table = array();
 foreach ($matches as $match) {
-    $ncr = $match[1];
-    $codepoint = hexdec($match[2]);
-    $table[$ncr] = $codepoint;
+    list(, $name, $codepoint) = $match;
+    
+    // Set the subtable we're working with initially to the whole table.
+    $subtable =& $table;
+    
+    // Loop over each character to the name creating an array key for it, if it 
+    // doesn't already exist
+    for ($i = 0, $len = strlen($name); $i < $len; $i++) {
+        if (!isset($subtable[$name[$i]])) {
+            $subtable[$name[$i]] = null;
+        }
+        $subtable =& $subtable[$name[$i]];
+    }
+    
+    // Set the key codepoint to the codepoint.
+    $subtable['codepoint'] = hexdec($codepoint);
 }
 
 file_put_contents($output, serialize($table));
