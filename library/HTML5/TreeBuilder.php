@@ -121,7 +121,7 @@ class HTML5_TreeBuilder {
     const MARKER     = 300;
 
     // Namespaces for foreign content
-    const NS_HTML   = 'http://www.w3.org/1999/xhtml';
+    const NS_HTML   = null; // to prevent DOM from requiring NS on everything
     const NS_MATHML = 'http://www.w3.org/1998/Math/MathML';
     const NS_SVG    = 'http://www.w3.org/2000/svg';
     const NS_XLINK  = 'http://www.w3.org/1999/xlink';
@@ -3516,8 +3516,8 @@ class HTML5_TreeBuilder {
      */
     public function setupContext($context = null) {
         $this->fragment = true;
-        $context = $this->dom->createElementNS(self::NS_HTML, $context);
         if ($context) {
+            $context = $this->dom->createElementNS(self::NS_HTML, $context);
             /* 4.1. Set the HTML parser's tokenization  stage's content model
              * flag according to the context element, as follows: */
             switch ($context->tagName) {

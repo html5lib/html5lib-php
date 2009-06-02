@@ -84,9 +84,9 @@ class HTML5_Tokenizer {
     /**
      * @param $data Data to parse
      */
-    public function __construct($data) {
+    public function __construct($data, $builder = null) {
         $this->stream = new HTML5_InputStream($data);
-        $this->tree = new HTML5_TreeBuilder;
+        if (!$builder) $this->tree = new HTML5_TreeBuilder;
         $this->content_model = self::PCDATA;
     }
 
