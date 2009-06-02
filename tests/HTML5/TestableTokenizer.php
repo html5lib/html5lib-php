@@ -45,7 +45,7 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
                 $attr = new stdclass();
                 foreach ($token['attr'] as $keypair) {
                     // XXX this is IMPORTANT behavior, check if it's
-                    // in TreeConstructer
+                    // in TreeBuilder
                     $name = $keypair['name'];
                     if (isset($attr->$name)) continue;
                     $attr->$name = $keypair['value'];

@@ -110,24 +110,24 @@ class HTML5_TestData
                 case XML_ELEMENT_NODE:
                     $ns = '';
                     switch ($next->namespaceURI) {
-                    case HTML5_TreeConstructer::NS_MATHML:
+                    case HTML5_TreeBuilder::NS_MATHML:
                         $ns = 'math '; break;
-                    case HTML5_TreeConstructer::NS_SVG:
+                    case HTML5_TreeBuilder::NS_SVG:
                         $ns = 'svg '; break;
                     }
                     $text = "<{$ns}{$next->tagName}>";
                     foreach ($next->attributes as $attr) {
                         $ans = '';
                         switch ($attr->namespaceURI) {
-                        case HTML5_TreeConstructer::NS_MATHML:
+                        case HTML5_TreeBuilder::NS_MATHML:
                             $ans = 'math '; break;
-                        case HTML5_TreeConstructer::NS_SVG:
+                        case HTML5_TreeBuilder::NS_SVG:
                             $ans = 'svg '; break;
-                        case HTML5_TreeConstructer::NS_XLINK:
+                        case HTML5_TreeBuilder::NS_XLINK:
                             $ans = 'xlink '; break;
-                        case HTML5_TreeConstructer::NS_XML:
+                        case HTML5_TreeBuilder::NS_XML:
                             $ans = 'xml '; break;
-                        case HTML5_TreeConstructer::NS_XMLNS:
+                        case HTML5_TreeBuilder::NS_XMLNS:
                             $ans = 'xmlns '; break;
                         }
                         // XSKETCHY: needed for our horrible xlink hack

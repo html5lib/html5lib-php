@@ -32,7 +32,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //      XSCRIPT - with regards to scripting mode
 //      XENCODING - with regards to encoding (for reparsing tests)
 
-class HTML5_TreeConstructer {
+class HTML5_TreeBuilder {
     public $stack = array();
     public $content_model;
 
@@ -100,7 +100,7 @@ class HTML5_TreeConstructer {
     private function strConst($number) {
         static $lookup;
         if (!$lookup) {
-            $r = new ReflectionClass('HTML5_TreeConstructer');
+            $r = new ReflectionClass('HTML5_TreeBuilder');
             $lookup = array_flip($r->getConstants());
         }
         return $lookup[$number];
@@ -146,7 +146,7 @@ class HTML5_TreeConstructer {
 
         /*
         $backtrace = debug_backtrace();
-        if ($backtrace[1]['class'] !== 'HTML5_TreeConstructer') echo "--\n";
+        if ($backtrace[1]['class'] !== 'HTML5_TreeBuilder') echo "--\n";
         echo $this->strConst($mode);
         if ($this->original_mode) echo " (originally ".$this->strConst($this->original_mode).")";
         echo "\n  ";

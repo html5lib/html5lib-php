@@ -86,7 +86,7 @@ class HTML5_Tokenizer {
      */
     public function __construct($data) {
         $this->stream = new HTML5_InputStream($data);
-        $this->tree = new HTML5_TreeConstructer;
+        $this->tree = new HTML5_TreeBuilder;
         $this->content_model = self::PCDATA;
     }
 
