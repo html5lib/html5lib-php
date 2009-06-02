@@ -582,13 +582,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the EOF
-                        character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'eof-in-tag-name'
                         ));
-                        $this->emitToken($this->token);
 
                         $this->stream->unget();
                         $state = 'data';
@@ -644,13 +642,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the EOF
-                        character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'expected-attribute-name-but-got-eof'
                         ));
-                        $this->emitToken($this->token);
 
                         $this->stream->unget();
                         $state = 'data';
@@ -725,13 +721,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the EOF
-                        character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'eof-in-attribute-name'
                         ));
-                        $this->emitToken($this->token);
 
                         $this->stream->unget();
                         $state = 'data';
@@ -814,13 +808,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the EOF
-                        character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'expected-end-of-tag-but-got-eof'
                         ));
-                        $this->emitToken($this->token);
 
                         $this->stream->unget();
                         $state = 'data';
@@ -892,13 +884,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume
-                        the character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'expected-attribute-value-but-got-eof'
                         ));
-                        $this->emitToken($this->token);
                         $this->stream->unget();
                         $state = 'data';
 
@@ -940,13 +930,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the character
-                        in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'eof-in-attribute-value-double-quote'
                         ));
-                        $this->emitToken($this->token);
 
                         $this->stream->unget();
                         $state = 'data';
@@ -980,13 +968,11 @@ class HTML5_Tokenizer {
 
                     } elseif($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the character
-                        in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'eof-in-attribute-value-single-quote'
                         ));
-                        $this->emitToken($this->token);
 
                         $this->stream->unget();
                         $state = 'data';
@@ -1029,13 +1015,11 @@ class HTML5_Tokenizer {
 
                     } elseif ($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume
-                        the character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'eof-in-attribute-value-no-quotes'
                         ));
-                        $this->emitToken($this->token);
                         $this->stream->unget();
                         $state = 'data';
 
@@ -1089,13 +1073,11 @@ class HTML5_Tokenizer {
 
                     } elseif ($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the EOF
-                        character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'unexpected-EOF-after-attribute-value'
                         ));
-                        $this->emitToken($this->token);
                         $this->stream->unget();
                         $state = 'data';
 
@@ -1135,13 +1117,11 @@ class HTML5_Tokenizer {
 
                     } elseif ($char === false) {
                         /* EOF
-                        Parse error. Emit the current tag token. Reconsume the
-                        EOF character in the data state. */
+                        Parse error. Reconsume the EOF character in the data state. */
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'unexpected-eof-after-self-closing'
                         ));
-                        $this->emitToken($this->token);
                         $this->stream->unget();
                         $state = 'data';
 
@@ -1418,6 +1398,24 @@ class HTML5_Tokenizer {
                            U+0020 SPACE
                         Switch to the before DOCTYPE name state. */
                         $state = 'before DOCTYPE name';
+                    
+                    } elseif($char === false) {
+                        /* EOF
+                        Parse error. Create a new DOCTYPE token. Set its
+                        force-quirks flag to on. Emit the token. Reconsume the
+                        EOF character in the data state. */
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'need-space-after-doctype-but-got-eof'
+                        ));
+                        $this->emitToken(array(
+                            'name' => '',
+                            'type' => self::DOCTYPE,
+                            'force-quirks' => true,
+                            'error' => true
+                        ));
+                        $this->stream->unget();
+                        $state = 'data';
 
                     } else {
                         /* Anything else
