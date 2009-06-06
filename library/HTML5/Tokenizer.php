@@ -1026,10 +1026,11 @@ class HTML5_Tokenizer {
                     } else {
                         /* U+0022 QUOTATION MARK (")
                            U+0027 APOSTROPHE (')
+                           U+003C LESS-THAN SIGN (<)
                            U+003D EQUALS SIGN (=)
                         Parse error. Treat it as per the "anything else"
                         entry below. */
-                        if($char === '"' || $char === "'" || $char === '=') {
+                        if($char === '"' || $char === "'" || $char === '=' || $char == '<') {
                             $this->emitToken(array(
                                 'type' => self::PARSEERROR,
                                 'data' => 'unexpected-character-in-unquoted-attribute-value'
