@@ -1109,8 +1109,10 @@ class HTML5_TreeBuilder {
 
                 /* A start tag whose tag name is "table" */
                 case 'table':
-                    /* If the stack of open elements has a p element in scope,
-                    then act as if an end tag with the tag name p had been seen. */
+                    /* If the Document is not set to quirks mode, and the 
+                     * stack of open elements has a p element in scope, then 
+                     * act as if an end tag with the tag name "p" had been 
+                     * seen. */
                     if($this->quirks_mode !== self::QUIRKS_MODE &&
                     $this->elementInScope('p')) {
                         $this->emitToken(array(
