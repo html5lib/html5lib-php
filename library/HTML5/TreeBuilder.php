@@ -31,6 +31,7 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
 //      XENCODING - with regards to encoding (for reparsing tests)
+//      XSKETCHY - godawful workarounds
 
 class HTML5_TreeBuilder {
     public $stack = array();
@@ -128,6 +129,15 @@ class HTML5_TreeBuilder {
     const NS_XML    = 'http://www.w3.org/XML/1998/namespace';
     const NS_XMLNS  = 'http://www.w3.org/2000/xmlns/';
 
+    public $nsToPrefix = array(
+        self::NS_HTML => '',
+        self::NS_MATHML => 'math:',
+        self::NS_SVG => 'svg:',
+        self::NS_XLINK => 'xlink:',
+        self::NS_XML => 'xml:',
+        self::NS_XMLNS => 'xmlns:',
+    );
+
     public function __construct() {
         $this->mode = self::INITIAL;
         $this->dom = new DOMDocument;
@@ -140,7 +150,6 @@ class HTML5_TreeBuilder {
 
     // Process tag tokens
     public function emitToken($token, $mode = null) {
-        // XXX: ignore parse errors... why are we emitting them, again?
         if ($token['type'] === HTML5_Tokenizer::PARSEERROR) return;
         if ($mode === null) $mode = $this->mode;
 
@@ -195,9 +204,6 @@ class HTML5_TreeBuilder {
              * doctype attribute of the Document object. */
             if (!isset($token['public'])) $token['public'] = null;
             if (!isset($token['system'])) $token['system'] = null;
-            // Yes this is hacky. I'm kind of annoyed that I can't appendChild
-            // a doctype to DOMDocument. Maybe I haven't chanted the right
-            // syllables.
             $impl = new DOMImplementation();
             // This call can fail for particularly pathological cases (namely,
             // the qualifiedName parameter ($token['name']) could be missing.
@@ -1753,7 +1759,7 @@ class HTML5_TreeBuilder {
                              * elements with an entry for the new element, and
                              * let node be the new element. */
                             // we don't know what the token is anymore
-                            $clone = $node->cloneNode();
+                            $clone = $this->cloneNode($node);
                             $a_pos = array_search($node, $this->a_formatting, true);
                             $s_pos = array_search($node, $this->stack, true);
                             $this->a_formatting[$a_pos] = $clone;
@@ -1794,7 +1800,7 @@ class HTML5_TreeBuilder {
 
                         /* 8. Create an element for the token for which the
                          * formatting element was created. */
-                        $clone = $formatting_element->cloneNode();
+                        $clone = $this->cloneNode($formatting_element);
 
                         /* 9. Take all of the child nodes of the furthest
                         block and append them to the element created in the
@@ -3177,7 +3183,7 @@ class HTML5_TreeBuilder {
             }
 
             /* 8. Perform a shallow clone of the element entry to obtain clone. */
-            $clone = $entry->cloneNode();
+            $clone = $this->cloneNode($entry);
 
             /* 9. Append clone to the current node and push it onto the stack
             of open elements  so that it is the new current node. */
@@ -3672,22 +3678,25 @@ class HTML5_TreeBuilder {
         if (!empty($token['attr'])) {
             foreach ($token['attr'] as $kp) {
                 $attr = $kp['name'];
+                // XSKETCHY: this entire thing is a hack to get around
+                // DOM's really bad XML implementation
                 if (is_array($attr)) {
                     $ns = $attr[2];
                     $attr = $attr[1];
                 } else {
                     $ns = self::NS_HTML;
                 }
-                if (!$el->hasAttributeNS($ns, $attr)) {
-                    // XSKETCHY: work around godawful libxml bug
-                    if ($ns === self::NS_XLINK) {
-                        $el->setAttribute('xlink:'.$attr, $kp['value']);
-                    } elseif ($ns === self::NS_HTML) {
-                        // Another godawful libxml bug
-                        $el->setAttribute($attr, $kp['value']);
-                    } else {
-                        $el->setAttributeNS($ns, $attr, $kp['value']);
+                if ($ns === self::NS_XML) {
+                    // this is special cased since DOM converts xml:lang
+                    // into lang
+                    $el->setAttributeNS($ns, $attr, $kp['value']);
+                } else {
+                    $prefix = $this->nsToPrefix[$ns];
+                    $el->setAttribute($prefix.$attr, $kp['value']);
+                    if (!isset($el->html5_namespaced)) {
+                        $el->html5_namespaced = array();
                     }
+                    $el->html5_namespaced[$prefix.$attr] = true;
                 }
             }
         }
@@ -3699,6 +3708,14 @@ class HTML5_TreeBuilder {
          * namespace, that is a parse error. Similarly, if the newly created 
          * element has an xmlns:xlink attribute in the XMLNS namespace whose 
          * value is not the XLink Namespace, that is a parse error. */
+    }
+
+    private function cloneNode($node) {
+        $clone = $node->cloneNode();
+        if (isset($node->html5_namespaced)) {
+            $clone->html5_namespaced = $node->html5_namespaced;
+        }
+        return $clone;
     }
 
     public function save() {

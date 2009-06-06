@@ -117,22 +117,16 @@ class HTML5_TestData
                     }
                     $text = "<{$ns}{$next->tagName}>";
                     foreach ($next->attributes as $attr) {
-                        $ans = '';
-                        switch ($attr->namespaceURI) {
-                        case HTML5_TreeBuilder::NS_MATHML:
-                            $ans = 'math '; break;
-                        case HTML5_TreeBuilder::NS_SVG:
-                            $ans = 'svg '; break;
-                        case HTML5_TreeBuilder::NS_XLINK:
-                            $ans = 'xlink '; break;
-                        case HTML5_TreeBuilder::NS_XML:
-                            $ans = 'xml '; break;
-                        case HTML5_TreeBuilder::NS_XMLNS:
-                            $ans = 'xmlns '; break;
+                        // XSKETCHY
+                        $name = $attr->name;
+                        if ($attr->namespaceURI === HTML5_TreeBuilder::NS_XML) {
+                            $name = "xml $name";
+                        } else {
+                            if (isset($next->html5_namespaced[$name])) {
+                                $name = str_replace(':', ' ', $name);
+                            }
                         }
-                        // XSKETCHY: needed for our horrible xlink hack
-                        $name = str_replace(':', ' ', $attr->localName);
-                        $subnodes[] = "{$ans}{$name}=\"{$attr->value}\"";
+                        $subnodes[] = "{$name}=\"{$attr->value}\"";
                     }
                     sort($subnodes);
                     break;
