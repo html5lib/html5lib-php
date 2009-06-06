@@ -2639,7 +2639,7 @@ class HTML5_TreeBuilder {
             ));
 
         } elseif($token['type'] === HTML5_Tokenizer::STARTTAG &&
-        ($token['name'] === 'input' || $token['name'] === 'textarea')) {
+        ($token['name'] === 'input' || $token['name'] === 'keygen' ||  $token['name'] === 'textarea')) {
             // parse error
             $this->emitToken(array(
                 'name' => 'select',
