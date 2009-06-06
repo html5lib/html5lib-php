@@ -100,8 +100,13 @@ class HTML5_TreeBuilder {
     private function strConst($number) {
         static $lookup;
         if (!$lookup) {
+            $lookup = array();
             $r = new ReflectionClass('HTML5_TreeBuilder');
-            $lookup = array_flip($r->getConstants());
+            $consts = $r->getConstants();
+            foreach ($consts as $const => $num) {
+                if (!is_int($num)) continue;
+                $lookup[$num] = $const;
+            }
         }
         return $lookup[$number];
     }
@@ -154,6 +159,7 @@ class HTML5_TreeBuilder {
         $this->printStack();
         $this->printActiveFormattingElements();
         if ($this->foster_parent) echo "  -> this is a foster parent mode\n";
+        if ($this->flag_frameset_ok) echo "  -> frameset ok\n";
         */
 
         if ($this->ignore_lf_token) $this->ignore_lf_token--;
