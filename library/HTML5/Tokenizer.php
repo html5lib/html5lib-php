@@ -2229,6 +2229,16 @@ class HTML5_Tokenizer {
             /* If no match can be made, then this is a parse error.
             No characters are consumed, and nothing is returned. */
             if (!$codepoint) {
+                // XERROR: per r3146 this doesn't always result in a
+                // parse error
+                /* If the current state is not the character reference in 
+                 * attribute value state, or the U+0026 AMPERSAND character is 
+                 * not followed by one or more characters in the ranges U+0030 
+                 * DIGIT ZERO to U+0039 DIGIT NINE, U+0041 LATIN CAPITAL LETTER 
+                 * A to U+005A LATIN CAPITAL LETTER Z, and U+0061 LATIN SMALL 
+                 * LETTER A to U+007A LATIN SMALL LETTER Z, followed by a 
+                 * U+003D EQUALS SIGN character (=), then this is also a parse 
+                 * error. */
                 $this->emitToken(array(
                     'type' => self::PARSEERROR,
                     'data' => 'expected-named-entity'
