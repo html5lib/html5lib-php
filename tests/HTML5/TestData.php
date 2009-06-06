@@ -25,7 +25,7 @@ class HTML5_TestData
             if ($type === 'tree-construction') {
                 // skip XFOREIGN tests for now
                 $num = (int) substr($name, 5);
-                if ($num >= 99) continue;
+                if ($num >= 9) continue;
             }
             $pfilename = var_export($filename, true);
             $code = "class $prefix$name extends $base { public \$filename = $pfilename; }";
