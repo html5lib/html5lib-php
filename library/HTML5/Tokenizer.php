@@ -1362,6 +1362,13 @@ class HTML5_Tokenizer {
                         ));
                         $this->token['data'] .= '-';
 
+                    } elseif($char === '!') {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'unexpected-bang-after-double-dash-in-comment'
+                        ));
+                        $state = 'comment end bang';
+
                     } elseif($char === false) {
                         /* EOF
                         Parse error. Emit the comment token. Reconsume the
@@ -1384,6 +1391,32 @@ class HTML5_Tokenizer {
                             'data' => 'unexpected-char-in-comment'
                         ));
                         $this->token['data'] .= '--'.$char;
+                        $state = 'comment';
+                    }
+                break;
+
+                case 'comment end bang':
+                    $char = $this->stream->char();
+                    if ($char === '>') {
+                        $this->emitToken($this->token);
+                        $state = 'data';
+                    } elseif ($char === "-") {
+                        $this->token['data'] .= '--!';
+                        $state = 'comment end dash';
+                    } elseif ($char === false) {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'eof-in-comment-end-bang'
+                        ));
+                        $this->emitToken($this->token);
+                        $this->stream->unget();
+                        $state = 'data';
+                    } else {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'unexpected-char-in-comment-end-bang',
+                        ));
+                        $this->token['data'] .= '--!' . $char;
                         $state = 'comment';
                     }
                 break;
