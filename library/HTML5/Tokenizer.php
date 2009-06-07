@@ -1437,10 +1437,6 @@ class HTML5_Tokenizer {
                     } elseif ($char === '-') {
                         $state = 'comment end dash';
                     } elseif ($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
-                        $this->emitToken(array(
-                            'type' => self::PARSEERROR,
-                            'data' => 'unexpected-space-in-comment-end-space',
-                        ));
                         $this->token['data'] .= $char;
                     } elseif ($char === false) {
                         $this->emitToken(array(
