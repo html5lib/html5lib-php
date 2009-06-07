@@ -1362,6 +1362,14 @@ class HTML5_Tokenizer {
                         ));
                         $this->token['data'] .= '-';
 
+                    } elseif($char === "\t" || $char === "\n" || $char === "\x0a" || $char === ' ') {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'unexpected-space-after-double-dash-in-comment'
+                        ));
+                        $this->token['data'] .= '--' . $char;
+                        $state = 'comment end space';
+
                     } elseif($char === '!') {
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
@@ -1417,6 +1425,33 @@ class HTML5_Tokenizer {
                             'data' => 'unexpected-char-in-comment-end-bang',
                         ));
                         $this->token['data'] .= '--!' . $char;
+                        $state = 'comment';
+                    }
+                break;
+
+                case 'comment end space':
+                    $char = $this->stream->char();
+                    if ($char === '>') {
+                        $this->emitToken($this->token);
+                        $state = 'data';
+                    } elseif ($char === '-') {
+                        $state = 'comment end dash';
+                    } elseif ($char === "\t" || $char === "\n" || $char === "\x0c" || $char === ' ') {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'unexpected-space-in-comment-end-space',
+                        ));
+                        $this->token['data'] .= $char;
+                    } elseif ($char === false) {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'unexpected-eof-in-comment-end-space',
+                        ));
+                        $this->emitToken($this->token);
+                        $this->stream->unget();
+                        $state = 'data';
+                    } else {
+                        $this->token['data'] .= $char;
                         $state = 'comment';
                     }
                 break;
