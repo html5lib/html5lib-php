@@ -1420,10 +1420,6 @@ class HTML5_Tokenizer {
                         $this->stream->unget();
                         $state = 'data';
                     } else {
-                        $this->emitToken(array(
-                            'type' => self::PARSEERROR,
-                            'data' => 'unexpected-char-in-comment-end-bang',
-                        ));
                         $this->token['data'] .= '--!' . $char;
                         $state = 'comment';
                     }
