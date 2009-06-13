@@ -1227,14 +1227,6 @@ class HTML5_TreeBuilder {
                             'attr' => array()
                         ));
 
-                        /* Act as if a start tag token with the tag name "p" had
-                        been seen. */
-                        $this->emitToken(array(
-                            'name' => 'p',
-                            'type' => HTML5_Tokenizer::STARTTAG,
-                            'attr' => array()
-                        ));
-
                         /* Act as if a start tag token with the tag name "label"
                         had been seen. */
                         $this->emitToken(array(
@@ -1276,13 +1268,6 @@ class HTML5_TreeBuilder {
                         had been seen. */
                         $this->emitToken(array(
                             'name' => 'label',
-                            'type' => HTML5_Tokenizer::ENDTAG
-                        ));
-
-                        /* Act as if an end tag token with the tag name "p" had
-                        been seen. */
-                        $this->emitToken(array(
-                            'name' => 'p',
                             'type' => HTML5_Tokenizer::ENDTAG
                         ));
 
