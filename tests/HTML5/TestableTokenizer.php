@@ -25,13 +25,8 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
     }
     // --end mismatched interface
 
-    protected function emitToken($token, $checkStream = true) {
-        if ($checkStream) {
-            // Emit errors from input stream.
-            while ($this->stream->errors) {
-                $this->emitToken(array_shift($this->stream->errors), false);
-            }
-        }
+    protected function emitToken($token, $checkStream = true, $dry = false) {
+        parent::emitToken($token, $checkStream, true);
         
         // tree handling code omitted
         switch ($token['type']) {
@@ -56,9 +51,6 @@ class HTML5_TestableTokenizer extends HTML5_Tokenizer
                 break;
             case self::ENDTAG:
                 $this->outputTokens[] = array('EndTag', $token['name']);
-                // this is logic in the parent emitToken algorithm, but
-                // for optimization reasons we haven't factored it out
-                $this->content_model = self::PCDATA;
                 break;
             case self::COMMENT:
                 $this->outputTokens[] = array('Comment', $token['data']);

@@ -1109,14 +1109,6 @@ class HTML5_Tokenizer {
                         Emit the current tag token. Switch to the data state. */
                         // not sure if this is the name we want
                         $this->token['self-closing'] = true;
-                        /* When an end tag token is emitted with its self-closing flag set,
-                        that is a parse error. */
-                        if ($this->token['type'] === self::ENDTAG) {
-                            $this->emitToken(array(
-                                'type' => self::PARSEERROR,
-                                'data' => 'self-closing-end-tag'
-                            ));
-                        }
                         $this->emitToken($this->token);
                         $state = 'data';
 
@@ -2367,18 +2359,48 @@ class HTML5_Tokenizer {
     /**
      * Emits a token, passing it on to the tree builder.
      */
-    protected function emitToken($token, $checkStream = true) {
+    protected function emitToken($token, $checkStream = true, $dry = false) {
         if ($checkStream) {
             // Emit errors from input stream.
             while ($this->stream->errors) {
                 $this->emitToken(array_shift($this->stream->errors), false);
             }
         }
+        if($token['type'] === self::ENDTAG && !empty($token['attr'])) {
+            for ($i = 0; $i < count($token['attr']); $i++) {
+                $this->emitToken(array(
+                    'type' => self::PARSEERROR,
+                    'data' => 'attributes-in-end-tag'
+                ));
+            }
+        }
+        if($token['type'] === self::ENDTAG && !empty($token['self-closing'])) {
+            $this->emitToken(array(
+                'type' => self::PARSEERROR,
+                'data' => 'self-closing-flag-on-end-tag',
+            ));
+        }
+        if($token['type'] === self::STARTTAG) {
+            // This could be changed to actually pass the tree-builder a hash
+            $hash = array();
+            foreach ($token['attr'] as $keypair) {
+                if (isset($hash[$keypair['name']])) {
+                    $this->emitToken(array(
+                        'type' => self::PARSEERROR,
+                        'data' => 'duplicate-attribute',
+                    ));
+                } else {
+                    $hash[$keypair['name']] = $keypair['value'];
+                }
+            }
+        }
 
-        // the current structure of attributes is not a terribly good one
-        $this->tree->emitToken($token);
+        if(!$dry) {
+            // the current structure of attributes is not a terribly good one
+            $this->tree->emitToken($token);
+        }
 
-        if(is_int($this->tree->content_model)) {
+        if(!$dry && is_int($this->tree->content_model)) {
             $this->content_model = $this->tree->content_model;
             $this->tree->content_model = null;
 
