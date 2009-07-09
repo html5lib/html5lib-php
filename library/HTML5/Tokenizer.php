@@ -654,10 +654,11 @@ class HTML5_Tokenizer {
                     } else {
                         /* U+0022 QUOTATION MARK (")
                            U+0027 APOSTROPHE (')
+                           U+003C LESS-THAN SIGN (<)
                            U+003D EQUALS SIGN (=)
                         Parse error. Treat it as per the "anything else" entry
                         below. */
-                        if($char === '"' || $char === "'" || $char === '=') {
+                        if($char === '"' || $char === "'" || $char === '<' || $char === '=') {
                             $this->emitToken(array(
                                 'type' => self::PARSEERROR,
                                 'data' => 'invalid-character-in-attribute-name'
@@ -733,9 +734,10 @@ class HTML5_Tokenizer {
                     } else {
                         /* U+0022 QUOTATION MARK (")
                            U+0027 APOSTROPHE (')
+                           U+003C LESS-THAN SIGN (<)
                         Parse error. Treat it as per the "anything else"
                         entry below. */
-                        if($char === '"' || $char === "'") {
+                        if($char === '"' || $char === "'" || $char === '<') {
                             $this->emitToken(array(
                                 'type' => self::PARSEERROR,
                                 'data' => 'invalid-character-in-attribute-name'
@@ -820,9 +822,10 @@ class HTML5_Tokenizer {
                     } else {
                         /* U+0022 QUOTATION MARK (")
                            U+0027 APOSTROPHE (')
+                           U+003C LESS-THAN SIGN(<)
                         Parse error. Treat it as per the "anything else"
                         entry below. */
-                        if($char === '"' || $char === "'") {
+                        if($char === '"' || $char === "'" || $char === "<") {
                             $this->emitToken(array(
                                 'type' => self::PARSEERROR,
                                 'data' => 'invalid-character-after-attribute-name'
@@ -894,8 +897,9 @@ class HTML5_Tokenizer {
 
                     } else {
                         /* U+003D EQUALS SIGN (=)
+                         * U+003C LESS-THAN SIGN (<)
                         Parse error. Treat it as per the "anything else" entry below. */
-                        if($char === '=') {
+                        if($char === '=' || $char === '<') {
                             $this->emitToken(array(
                                 'type' => self::PARSEERROR,
                                 'data' => 'equals-in-unquoted-attribute-value'
