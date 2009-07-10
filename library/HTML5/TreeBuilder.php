@@ -31,6 +31,8 @@ SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 //      XERROR - with regards to parse errors
 //      XSCRIPT - with regards to scripting mode
 //      XENCODING - with regards to encoding (for reparsing tests)
+//      XDOM - DOM specific code (tagName is explicitly not marked).
+//          this is not (yet) in helper functions.
 
 class HTML5_TreeBuilder {
     public $stack = array();
@@ -205,6 +207,7 @@ class HTML5_TreeBuilder {
              * doctype attribute of the Document object. */
             if (!isset($token['public'])) $token['public'] = null;
             if (!isset($token['system'])) $token['system'] = null;
+            // XDOM
             // Yes this is hacky. I'm kind of annoyed that I can't appendChild
             // a doctype to DOMDocument. Maybe I haven't chanted the right
             // syllables.
@@ -367,6 +370,7 @@ class HTML5_TreeBuilder {
         } elseif($token['type'] === HTML5_Tokenizer::COMMENT) {
             /* Append a Comment node to the Document object with the data
             attribute set to the data given in the comment token. */
+            // XDOM
             $comment = $this->dom->createComment($token['data']);
             $this->dom->appendChild($comment);
 
@@ -382,6 +386,7 @@ class HTML5_TreeBuilder {
             /* Create an element for the token in the HTML namespace. Append it 
              * to the Document  object. Put this element in the stack of open 
              * elements. */
+            // XDOM
             $html = $this->insertElement($token, false);
             $this->dom->appendChild($html);
             $this->stack[] = $html;
@@ -391,6 +396,7 @@ class HTML5_TreeBuilder {
         } else {
             /* Create an html element. Append it to the Document object. Put
              * this element in the stack of open elements. */
+            // XDOM
             $html = $this->dom->createElementNS(self::NS_HTML, 'html');
             $this->dom->appendChild($html);
             $this->stack[] = $html;
@@ -1748,6 +1754,7 @@ class HTML5_TreeBuilder {
                              * elements with an entry for the new element, and
                              * let node be the new element. */
                             // we don't know what the token is anymore
+                            // XDOM
                             $clone = $node->cloneNode();
                             $a_pos = array_search($node, $this->a_formatting, true);
                             $s_pos = array_search($node, $this->stack, true);
@@ -1757,10 +1764,12 @@ class HTML5_TreeBuilder {
 
                             /* 6.6 Insert last node into node, first removing
                             it from its previous parent node if any. */
+                            // XDOM
                             if($last_node->parentNode !== null) {
                                 $last_node->parentNode->removeChild($last_node);
                             }
 
+                            // XDOM
                             $node->appendChild($last_node);
 
                             /* 6.7 Let last node be node. */
@@ -1774,6 +1783,7 @@ class HTML5_TreeBuilder {
                          * whatever last node ended up being in the previous
                          * step, first removing it from its previous parent
                          * node if any. */
+                        // XDOM
                         if ($last_node->parentNode) { // common step
                             $last_node->parentNode->removeChild($last_node);
                         }
@@ -1784,16 +1794,19 @@ class HTML5_TreeBuilder {
                          * first removing it from its previous parent node if
                          * any. */
                         } else {
+                            // XDOM
                             $common_ancestor->appendChild($last_node);
                         }
 
                         /* 8. Create an element for the token for which the
                          * formatting element was created. */
+                        // XDOM
                         $clone = $formatting_element->cloneNode();
 
                         /* 9. Take all of the child nodes of the furthest
                         block and append them to the element created in the
                         last step. */
+                        // XDOM
                         while($furthest_block->hasChildNodes()) {
                             $child = $furthest_block->firstChild;
                             $furthest_block->removeChild($child);
@@ -1801,6 +1814,7 @@ class HTML5_TreeBuilder {
                         }
 
                         /* 10. Append that clone to the furthest block. */
+                        // XDOM
                         $furthest_block->appendChild($clone);
 
                         /* 11. Remove the formatting element from the list
@@ -2753,6 +2767,7 @@ class HTML5_TreeBuilder {
             // XERROR: parse error
         } elseif ($token['type'] === HTML5_Tokenizer::ENDTAG &&
         $token['name'] === 'script' && end($this->stack)->tagName === 'script' &&
+        // XDOM
         end($this->stack)->namespaceURI === self::NS_SVG) {
             array_pop($this->stack);
             // a bunch of script running mumbo jumbo
@@ -2761,20 +2776,23 @@ class HTML5_TreeBuilder {
                 ((
                     $token['name'] !== 'mglyph' &&
                     $token['name'] !== 'malignmark' &&
+                    // XDOM
                     end($this->stack)->namespaceURI === self::NS_MATHML &&
                     in_array(end($this->stack)->tagName, array('mi', 'mo', 'mn', 'ms', 'mtext'))
                 ) ||
                 (
                     $token['name'] === 'svg' &&
+                    // XDOM
                     end($this->stack)->namespaceURI === self::NS_MATHML &&
                     end($this->stack)->tagName === 'annotation-xml'
                 ) ||
                 (
+                    // XDOM
                     end($this->stack)->namespaceURI === self::NS_SVG &&
                     in_array(end($this->stack)->tagName, array('foreignObject', 'desc', 'title'))
                 ) ||
                 (
-                    // XSKETCHY
+                    // XSKETCHY && XDOM
                     end($this->stack)->namespaceURI === self::NS_HTML
                 ))
             ) || $token['type'] === HTML5_Tokenizer::ENDTAG
@@ -2788,6 +2806,7 @@ class HTML5_TreeBuilder {
                 $found = false;
                 // this basically duplicates elementInScope()
                 for ($i = count($this->stack) - 1; $i >= 0; $i--) {
+                    // XDOM
                     $node = $this->stack[$i];
                     if ($node->namespaceURI !== self::NS_HTML) {
                         $found = true;
@@ -2815,6 +2834,7 @@ class HTML5_TreeBuilder {
             // XERROR: parse error
             do {
                 $node = array_pop($this->stack);
+                // XDOM
             } while ($node->namespaceURI !== self::NS_HTML);
             $this->stack[] = $node;
             $this->mode = $this->secondary_mode;
@@ -2858,6 +2878,7 @@ class HTML5_TreeBuilder {
                 'radialgradient' => 'radialGradient',
                 'textpath' => 'textPath',
             );
+            // XDOM
             $current = end($this->stack);
             if ($current->namespaceURI === self::NS_MATHML) {
                 $token = $this->adjustMathMLAttributes($token);
@@ -2894,6 +2915,7 @@ class HTML5_TreeBuilder {
             /* Append a Comment node to the first element in the stack of open
             elements (the html element), with the data attribute set to the
             data given in the comment token. */
+            // XDOM
             $comment = $this->dom->createComment($token['data']);
             $this->stack[0]->appendChild($comment);
 
@@ -3044,6 +3066,7 @@ class HTML5_TreeBuilder {
         if($token['type'] === HTML5_Tokenizer::COMMENT) {
             /* Append a Comment node to the Document object with the data
             attribute set to the data given in the comment token. */
+            // XDOM
             $comment = $this->dom->createComment($token['data']);
             $this->dom->appendChild($comment);
 
@@ -3067,6 +3090,7 @@ class HTML5_TreeBuilder {
         if($token['type'] === HTML5_Tokenizer::COMMENT) {
             /* Append a Comment node to the Document object with the data
             attribute set to the data given in the comment token. */
+            // XDOM
             $comment = $this->dom->createComment($token['data']);
             $this->dom->appendChild($comment);
 
