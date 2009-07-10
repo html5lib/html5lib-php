@@ -2213,6 +2213,16 @@ class HTML5_Tokenizer {
                     ));
                     $codepoint = $new_codepoint;
                 } else {
+                    // our logic is structured a little differently from the
+                    // spec's but they're equivalent.  The transform is:
+                    // spec:
+                    //      return character for codepoint
+                    //      if in range:
+                    //          parse error
+                    //  ours:
+                    //      if in range:
+                    //          parse error
+                    //      return character for codepoint
                     /* Otherwise, if the number is in the range 0x0000 to 0x0008,
                     U+000B,  U+000E to 0x001F,  0x007F  to 0x009F, 0xD800 to 0xDFFF ,
                     0xFDD0 to 0xFDEF, or is one of 0xFFFE, 0xFFFF, 0x1FFFE, 0x1FFFF,
@@ -2238,7 +2248,6 @@ class HTML5_Tokenizer {
                             'type' => self::PARSEERROR,
                             'data' => 'illegal-codepoint-for-numeric-entity'
                         ));
-                        $codepoint = 0xFFFD;
                     }
                 }
 

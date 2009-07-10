@@ -8,10 +8,13 @@ class HTML5_Data
     // at some point this should be moved to a .ser file. Another
     // possible optimization is to give UTF-8 bytes, not Unicode
     // codepoints
+    // XXX: Not quite sure why it's named this; this is
+    // actually the numeric entity dereference table.
     protected static $realCodepointTable = array(
+        0x00 => 0xFFFD, // REPLACEMENT CHARACTER
         0x0D => 0x000A, // LINE FEED (LF)
         0x80 => 0x20AC, // EURO SIGN ('€')
-        0x81 => 0xFFFD, // REPLACEMENT CHARACTER
+        0x81 => 0x0081, // <control>
         0x82 => 0x201A, // SINGLE LOW-9 QUOTATION MARK ('‚')
         0x83 => 0x0192, // LATIN SMALL LETTER F WITH HOOK ('ƒ')
         0x84 => 0x201E, // DOUBLE LOW-9 QUOTATION MARK ('„')
@@ -23,10 +26,10 @@ class HTML5_Data
         0x8A => 0x0160, // LATIN CAPITAL LETTER S WITH CARON ('Š')
         0x8B => 0x2039, // SINGLE LEFT-POINTING ANGLE QUOTATION MARK ('‹')
         0x8C => 0x0152, // LATIN CAPITAL LIGATURE OE ('Œ')
-        0x8D => 0xFFFD, // REPLACEMENT CHARACTER
+        0x8D => 0x008D, // <control>
         0x8E => 0x017D, // LATIN CAPITAL LETTER Z WITH CARON ('Ž')
-        0x8F => 0xFFFD, // REPLACEMENT CHARACTER
-        0x90 => 0xFFFD, // REPLACEMENT CHARACTER
+        0x8F => 0x008F, // <control>
+        0x90 => 0x0090, // <control>
         0x91 => 0x2018, // LEFT SINGLE QUOTATION MARK ('‘')
         0x92 => 0x2019, // RIGHT SINGLE QUOTATION MARK ('’')
         0x93 => 0x201C, // LEFT DOUBLE QUOTATION MARK ('“')
@@ -39,7 +42,7 @@ class HTML5_Data
         0x9A => 0x0161, // LATIN SMALL LETTER S WITH CARON ('š')
         0x9B => 0x203A, // SINGLE RIGHT-POINTING ANGLE QUOTATION MARK ('›')
         0x9C => 0x0153, // LATIN SMALL LIGATURE OE ('œ')
-        0x9D => 0xFFFD, // REPLACEMENT CHARACTER
+        0x9D => 0x009D, // <control>
         0x9E => 0x017E, // LATIN SMALL LETTER Z WITH CARON ('ž')
         0x9F => 0x0178, // LATIN CAPITAL LETTER Y WITH DIAERESIS ('Ÿ')
     );
@@ -71,12 +74,13 @@ class HTML5_Data
      *       shamelessly stolen from Feyd (which is in public domain).
      */
     public static function utf8chr($code) {
-        if($code > 0x10FFFF or $code < 0x0 or
+        /* We don't care: we live dangerously
+         * if($code > 0x10FFFF or $code < 0x0 or
           ($code >= 0xD800 and $code <= 0xDFFF) ) {
             // bits are set outside the "valid" range as defined
             // by UNICODE 4.1.0
             return "\xEF\xBF\xBD";
-        }
+          }*/
 
         $x = $y = $z = $w = 0;
         if ($code < 0x80) {
