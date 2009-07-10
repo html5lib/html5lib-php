@@ -70,6 +70,9 @@ class HTML5_TreeBuilder {
     'p','param','plaintext','pre','script','select','spacer','style',
     'tbody','textarea','tfoot','thead','title','tr','ul','wbr');
 
+    private $pendingTableCharacters;
+    private $pendingTableCharactersDirty;
+
     // Tree construction modes
     const INITIAL           = 0;
     const BEFORE_HTML       = 1;
@@ -80,19 +83,20 @@ class HTML5_TreeBuilder {
     const IN_BODY           = 6;
     const IN_CDATA_RCDATA   = 7;
     const IN_TABLE          = 8;
-    const IN_CAPTION        = 9;
-    const IN_COLUMN_GROUP   = 10;
-    const IN_TABLE_BODY     = 11;
-    const IN_ROW            = 12;
-    const IN_CELL           = 13;
-    const IN_SELECT         = 14;
-    const IN_SELECT_IN_TABLE= 15;
-    const IN_FOREIGN_CONTENT= 16;
-    const AFTER_BODY        = 17;
-    const IN_FRAMESET       = 18;
-    const AFTER_FRAMESET    = 19;
-    const AFTER_AFTER_BODY  = 20;
-    const AFTER_AFTER_FRAMESET = 21;
+    const IN_TABLE_TEXT     = 9;
+    const IN_CAPTION        = 10;
+    const IN_COLUMN_GROUP   = 11;
+    const IN_TABLE_BODY     = 12;
+    const IN_ROW            = 13;
+    const IN_CELL           = 14;
+    const IN_SELECT         = 15;
+    const IN_SELECT_IN_TABLE= 16;
+    const IN_FOREIGN_CONTENT= 17;
+    const AFTER_BODY        = 18;
+    const IN_FRAMESET       = 19;
+    const AFTER_FRAMESET    = 20;
+    const AFTER_AFTER_BODY  = 21;
+    const AFTER_AFTER_FRAMESET = 22;
 
     /**
      * Converts a magic number to a readable name. Use for debugging.
@@ -1940,17 +1944,21 @@ class HTML5_TreeBuilder {
     case self::IN_TABLE:
         $clear = array('html', 'table');
 
-        /* A character token that is one of one of U+0009 CHARACTER TABULATION,
-        U+000A LINE FEED (LF), U+000B LINE TABULATION, U+000C FORM FEED (FF),
-        or U+0020 SPACE */
-        if($token['type'] === HTML5_Tokenizer::SPACECHARACTER &&
-        /* If the current table is tainted, then act as described in
-         * the "anything else" entry below. */
-        // Note: hsivonen has a test that fails due to this line
-        // because he wants to convince Hixie not to do taint
-        !$this->currentTableIsTainted()) {
-            /* Append the character to the current node. */
-            $this->insertText($token['data']);
+        /* A character token */
+        if ($token['type'] === HTML5_Tokenizer::CHARACTER ||
+            $token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
+            /* Let the pending table character tokens
+             * be an empty list of tokens. */
+            $this->pendingTableCharacters = "";
+            $this->pendingTableCharactersDirty = false;
+            /* Let the original insertion mode be the current
+             * insertion mode. */
+            $this->original_mode = $this->mode;
+            /* Switch the insertion mode to
+             * "in table text" and
+             * reprocess the token. */
+            $this->mode = self::IN_TABLE_TEXT;
+            $this->emitToken($token);
 
         /* A comment token */
         } elseif($token['type'] === HTML5_Tokenizer::COMMENT) {
@@ -2093,6 +2101,57 @@ class HTML5_TreeBuilder {
             $this->foster_parent = true;
             $this->processWithRulesFor($token, self::IN_BODY);
             $this->foster_parent = $old;
+        }
+    break;
+
+    case self::IN_TABLE_TEXT:
+        /* A character token */
+        if($token['type'] === HTML5_Tokenizer::CHARACTER) {
+            /* Append the character token to the pending table
+             * character tokens list. */
+            $this->pendingTableCharacters .= $token['data'];
+            $this->pendingTableCharactersDirty = true;
+        } elseif ($token['type'] === HTML5_Tokenizer::SPACECHARACTER) {
+            $this->pendingTableCharacters .= $token['data'];
+        /* Anything else */
+        } else {
+            if ($this->pendingTableCharacters !== '' && is_string($this->pendingTableCharacters)) {
+                /* If any of the tokens in the pending table character tokens list 
+                 * are character tokens that are not one of U+0009 CHARACTER 
+                 * TABULATION, U+000A LINE FEED (LF), U+000C FORM FEED (FF), or 
+                 * U+0020 SPACE, then reprocess those character tokens using the 
+                 * rules given in the "anything else" entry in the in table" 
+                 * insertion mode.*/
+                if ($this->pendingTableCharactersDirty) {
+                    /* Parse error. Process the token using the rules for the 
+                     * "in body" insertion mode, except that if the current 
+                     * node is a table, tbody, tfoot, thead, or tr element, 
+                     * then, whenever a node would be inserted into the current 
+                     * node, it must instead be foster parented. */
+                    // XERROR
+                    $old = $this->foster_parent;
+                    $this->foster_parent = true;
+                    $text_token = array(
+                        'type' => HTML5_Tokenizer::CHARACTER,
+                        'data' => $this->pendingTableCharacters,
+                    );
+                    $this->processWithRulesFor($text_token, self::IN_BODY);
+                    $this->foster_parent = $old;
+
+                /* Otherwise, insert the characters given by the pending table 
+                 * character tokens list into the current node. */
+                } else {
+                    $this->insertText($this->pendingTableCharacters);
+                }
+                $this->pendingTableCharacters = null;
+                $this->pendingTableCharactersNull = null;
+            }
+
+            /* Switch the insertion mode to the original insertion mode and 
+             * reprocess the token.
+             */
+            $this->mode = $this->original_mode;
+            $this->emitToken($token);
         }
     break;
 
@@ -3458,12 +3517,8 @@ class HTML5_TreeBuilder {
     public function fosterParent($node) {
         $foster_parent = $this->getFosterParent();
         $table = $this->getCurrentTable(); // almost equivalent to last table element, except it can be html
-        /* When a node node is to be foster parented, the node node  must be 
-         * inserted into the foster parent element, and the current table must 
-         * be marked as tainted. (Once the current table has been tainted, 
-         * whitespace characters are inserted into the foster parent element 
-         * instead of the current node.) */
-        $table->tainted = true;
+        /* When a node node is to be foster parented, the node node must be
+         * be inserted into the foster parent element. */
         /* If the foster parent element is the parent element of the last table 
          * element in the stack of open elements, then node must be inserted 
          * immediately before the last table element in the stack of open 
