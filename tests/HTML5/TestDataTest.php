@@ -7,8 +7,8 @@ class HTML5_TestDataTest extends UnitTestCase
     function testSample() {
         $data = new HTML5_TestData(dirname(__FILE__) . '/TestDataTest/sample.dat');
         $this->assertIdentical($data->tests, array(
-            array('data' => "Foo\n", 'des' => "Bar\n"),
-            array('data' => "Foo\n")
+            array('data' => "Foo", 'des' => "Bar"),
+            array('data' => "Foo")
         ));
     }
     function testStrDom() {

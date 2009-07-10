@@ -7,8 +7,8 @@ class HTML5_PositionTestableTokenizer extends HTML5_TestableTokenizer
     public $outputLines = array();
     public $outputCols  = array();
     private $characterTokens = array();
-    protected function emitToken($token, $checkStream = true) {
-        parent::emitToken($token, $checkStream);
+    protected function emitToken($token, $checkStream = true, $dry = false) {
+        parent::emitToken($token, $checkStream, $dry);
         // XXX: The tests should really include the parse errors, but I'm lazy.
         switch ($token['type']) {
             case self::PARSEERROR:
