@@ -2211,28 +2211,29 @@ class HTML5_Tokenizer {
                         'type' => self::PARSEERROR,
                         'data' => 'illegal-windows-1252-entity'
                     ));
-                    $codepoint = $new_codepoint;
+                    return HTML5_Data::utf8chr($new_codepoint);
                 } else {
-                    // our logic is structured a little differently from the
-                    // spec's but they're equivalent.  The transform is:
-                    // spec:
-                    //      return character for codepoint
-                    //      if in range:
-                    //          parse error
-                    //  ours:
-                    //      if in range:
-                    //          parse error
-                    //      return character for codepoint
-                    /* Otherwise, if the number is in the range 0x0000 to 0x0008,
-                    U+000B,  U+000E to 0x001F,  0x007F  to 0x009F, 0xD800 to 0xDFFF ,
-                    0xFDD0 to 0xFDEF, or is one of 0xFFFE, 0xFFFF, 0x1FFFE, 0x1FFFF,
-                    0x2FFFE, 0x2FFFF, 0x3FFFE, 0x3FFFF, 0x4FFFE, 0x4FFFF, 0x5FFFE,
-                    0x5FFFF, 0x6FFFE, 0x6FFFF, 0x7FFFE, 0x7FFFF, 0x8FFFE, 0x8FFFF,
-                    0x9FFFE, 0x9FFFF, 0xAFFFE, 0xAFFFF, 0xBFFFE, 0xBFFFF, 0xCFFFE,
-                    0xCFFFF, 0xDFFFE, 0xDFFFF, 0xEFFFE, 0xEFFFF, 0xFFFFE, 0xFFFFF,
-                    0x10FFFE, or 0x10FFFF, or is higher than 0x10FFFF, then this
-                    is a parse error; return a character token for the U+FFFD
-                    REPLACEMENT CHARACTER character instead. */
+                    /* Otherwise, if the number is greater than 0x10FFFF, then 
+                     * this is a parse error. Return a U+FFFD REPLACEMENT 
+                     * CHARACTER. */
+                    if ($codepoint > 0x10FFFF) {
+                        $this->emitToken(array(
+                            'type' => self::PARSEERROR,
+                            'data' => 'overlong-character-entity' // XXX probably not correct
+                        ));
+                        return "\xEF\xBF\xBD";
+                    }
+                    /* Otherwise, return a character token for the Unicode 
+                     * character whose code point is that number.  If the 
+                     * number is in the range 0x0001 to 0x0008,    0x000E to 
+                     * 0x001F,  0x007F  to 0x009F, 0xD800 to 0xDFFF, 0xFDD0 to 
+                     * 0xFDEF, or is one of 0x000B, 0xFFFE, 0xFFFF, 0x1FFFE, 
+                     * 0x1FFFF, 0x2FFFE, 0x2FFFF, 0x3FFFE, 0x3FFFF, 0x4FFFE, 
+                     * 0x4FFFF, 0x5FFFE, 0x5FFFF, 0x6FFFE, 0x6FFFF, 0x7FFFE, 
+                     * 0x7FFFF, 0x8FFFE, 0x8FFFF, 0x9FFFE, 0x9FFFF, 0xAFFFE, 
+                     * 0xAFFFF, 0xBFFFE, 0xBFFFF, 0xCFFFE, 0xCFFFF, 0xDFFFE, 
+                     * 0xDFFFF, 0xEFFFE, 0xEFFFF, 0xFFFFE, 0xFFFFF, 0x10FFFE, 
+                     * or 0x10FFFF, then this is a parse error. */
                     // && has higher precedence than ||
                     if (
                         $codepoint >= 0x0000 && $codepoint <= 0x0008 ||
@@ -2242,18 +2243,15 @@ class HTML5_Tokenizer {
                         $codepoint >= 0xD800 && $codepoint <= 0xDFFF ||
                         $codepoint >= 0xFDD0 && $codepoint <= 0xFDEF ||
                         ($codepoint & 0xFFFE) === 0xFFFE ||
-                        $codepoint > 0x10FFFF
+                        $codepoint == 0x10FFFF || $codepoint == 0x10FFFE
                     ) {
                         $this->emitToken(array(
                             'type' => self::PARSEERROR,
                             'data' => 'illegal-codepoint-for-numeric-entity'
                         ));
                     }
+                    return HTML5_Data::utf8chr($codepoint);
                 }
-
-                /* Otherwise, return a character token for the Unicode
-                character whose code point is that number. */
-                return HTML5_Data::utf8chr($codepoint);
             }
 
         } else {
