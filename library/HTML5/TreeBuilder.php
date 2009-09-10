@@ -1321,6 +1321,16 @@ class HTML5_TreeBuilder {
 
                 /* A start tag token whose tag name is "xmp" */
                 case 'xmp':
+                    /* If the stack of open elements has a p element in
+                    scope, then act as if an end tag with the tag name
+                    "p" has been seen. */
+                    if ($this->elementInScope('p')) {
+                        $this->emitToken(array(
+                            'name' => 'p',
+                            'type' => HTML5_Tokenizer::ENDTAG
+                        ));
+                    }
+
                     /* Reconstruct the active formatting elements, if any. */
                     $this->reconstructActiveFormattingElements();
 
