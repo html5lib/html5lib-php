@@ -64,8 +64,9 @@ class HTML5_TreeBuilder {
 
     private $scoping = array('applet','button','caption','html','marquee','object','table','td','th', 'svg:foreignObject');
     private $formatting = array('a','b','big','code','em','font','i','nobr','s','small','strike','strong','tt','u');
+    // dl and ds are speculative
     private $special = array('address','area','article','aside','base','basefont','bgsound',
-    'blockquote','body','br','center','col','colgroup','command','dd','details','dialog','dir','div','dl',
+    'blockquote','body','br','center','col','colgroup','command','dc','dd','details','dir','div','dl','ds',
     'dt','embed','fieldset','figure','footer','form','frame','frameset','h1','h2','h3','h4','h5',
     'h6','head','header','hgroup','hr','iframe','img','input','isindex','li','link',
     'listing','menu','meta','nav','noembed','noframes','noscript','ol',
@@ -752,6 +753,10 @@ class HTML5_TreeBuilder {
                 // parse error
             break;
 
+            case HTML5_Tokenizer::EOF:
+                // parse error
+            break;
+
             case HTML5_Tokenizer::STARTTAG:
             switch($token['name']) {
                 case 'html':
@@ -830,7 +835,7 @@ class HTML5_TreeBuilder {
                 // in spec, there is a diversion here
 
                 case 'address': case 'article': case 'aside': case 'blockquote':
-                case 'center': case 'datagrid': case 'details': case 'dialog': case 'dir':
+                case 'center': case 'datagrid': case 'details': case 'dir':
                 case 'div': case 'dl': case 'fieldset': case 'figure': case 'footer':
                 case 'header': case 'hgroup': case 'menu': case 'nav':
                 case 'ol': case 'p': case 'section': case 'ul':
@@ -921,7 +926,7 @@ class HTML5_TreeBuilder {
                 break;
 
                 // condensed specification
-                case 'li': case 'dd': case 'dt':
+                case 'li': case 'dc': case 'dd': case 'ds': case 'dt':
                     /* 1. Set the frameset-ok flag to "not ok". */
                     $this->flag_frameset_ok = false;
 
@@ -937,12 +942,12 @@ class HTML5_TreeBuilder {
                         /* 3. If node is an li element, then act as if an end
                          * tag with the tag name "li" had been seen, then jump
                          * to the last step.  */
-                        // for case 'dd': case 'dt':
-                        /* If node is a dd or dt element, then act as if an end
+                        // for case 'dc': case 'dd': case 'ds': case 'dt':
+                        /* If node is a dc, dd, ds or dt element, then act as if an end
                          * tag with the same tag name as node had been seen, then
                          * jump to the last step. */
                         if(($token['name'] === 'li' && $node->tagName === 'li') ||
-                        ($token['name'] !== 'li' && ($node->tagName === 'dd' || $node->tagName === 'dt'))) { // limited conditional
+                        ($token['name'] !== 'li' && ($node->tagName == 'dc' || $node->tagName === 'dd' || $node->tagName == 'ds' || $node->tagName === 'dt'))) { // limited conditional
                             $this->emitToken(array(
                                 'type' => HTML5_Tokenizer::ENDTAG,
                                 'name' => $node->tagName,
@@ -1463,20 +1468,21 @@ class HTML5_TreeBuilder {
             switch($token['name']) {
                 /* An end tag with the tag name "body" */
                 case 'body':
-                    /* If the second element in the stack of open elements is
-                    not a body element, this is a parse error. Ignore the token.
-                    (innerHTML case) */
-                    if(count($this->stack) < 2 || $this->stack[1]->tagName !== 'body') {
+                    /* If the stack of open elements does not have a body 
+                     * element in scope, this is a parse error; ignore the 
+                     * token. */
+                    if(!$this->elementInScope('body')) {
                         $this->ignored = true;
 
-                    /* Otherwise, if there is a node in the stack of open
-                     * elements that is not either a dd element, a dt
-                     * element, an li element, an optgroup element, an
-                     * option element, a p element, an rp element, an rt
-                     * element, a tbody element, a td element, a tfoot
-                     * element, a th element, a thead element, a tr element,
-                     * the body element, or the html element, then this is a
-                     * parse error. */
+                    /* Otherwise, if there is a node in the stack of open 
+                     * elements that is not either a dc element, a dd element, 
+                     * a ds element, a dt element, an li element, an optgroup 
+                     * element, an option element, a p element, an rp element, 
+                     * an rt element, a tbody element, a td element, a tfoot 
+                     * element, a th element, a thead element, a tr element, 
+                     * the body element, or the html element, then this is a 
+                     * parse error.
+                     */
                     } else {
                         // XERROR: implement this check for parse error
                     }
@@ -1500,7 +1506,7 @@ class HTML5_TreeBuilder {
 
                 case 'address': case 'article': case 'aside': case 'blockquote':
                 case 'center': case 'datagrid': case 'details': case 'dir':
-                case 'div': case 'dl': case 'fieldset': case 'figure': case 'footer':
+                case 'div': case 'dl': case 'fieldset': case 'footer':
                 case 'header': case 'hgroup': case 'listing': case 'menu':
                 case 'nav': case 'ol': case 'pre': case 'section': case 'ul':
                     /* If the stack of open elements has an element in scope
@@ -1603,8 +1609,8 @@ class HTML5_TreeBuilder {
                     }
                 break;
 
-                /* An end tag whose tag name is "dd", "dt", or "li" */
-                case 'dd': case 'dt':
+                /* An end tag whose tag name is "dc", "dd", "ds", "dt" */
+                case 'dc': case 'dd': case 'ds': case 'dt':
                     if($this->elementInScope($token['name'])) {
                         $this->generateImpliedEndTags(array($token['name']));
 
@@ -2863,7 +2869,7 @@ class HTML5_TreeBuilder {
         } elseif ($token['type'] === HTML5_Tokenizer::EOF || (
         $token['type'] === HTML5_Tokenizer::STARTTAG &&
         (in_array($token['name'], array('b', "big", "blockquote", "body", "br", 
-        "center", "code", "dd", "div", "dl", "dt", "em", "embed", "h1", "h2", 
+        "center", "code", "dc", "dd", "div", "dl", "ds", "dt", "em", "embed", "h1", "h2", 
         "h3", "h4", "h5", "h6", "head", "hr", "i", "img", "li", "listing", 
         "menu", "meta", "nobr", "ol", "p", "pre", "ruby", "s",  "small", 
         "span", "strong", "strike",  "sub", "sup", "table", "tt", "u", "ul", 
@@ -3341,13 +3347,13 @@ class HTML5_TreeBuilder {
     }
 
     private function generateImpliedEndTags($exclude = array()) {
-        /* When the steps below require the UA to generate implied end tags,
-        then, if the current node is a dd element, a dt element, an li element,
-        a p element, a td element, a th  element, or a tr element, the UA must
-        act as if an end tag with the respective tag name had been seen and
-        then generate implied end tags again. */
+        /* When the steps below require the UA to generate implied end tags, 
+         * then, while the current node is a dc element, a dd element, a ds 
+         * element, a dt element, an li element, an option element, an optgroup 
+         * element, a p element, an rp element, or an rt element, the UA must 
+         * pop the current node off the stack of open elements. */
         $node = end($this->stack);
-        $elements = array_diff(array('dd', 'dt', 'li', 'p', 'td', 'th', 'tr'), $exclude);
+        $elements = array_diff(array('dc', 'dd', 'ds', 'dt', 'li', 'p', 'td', 'th', 'tr'), $exclude);
 
         while(in_array(end($this->stack)->tagName, $elements)) {
             array_pop($this->stack);
