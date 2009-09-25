@@ -1008,8 +1008,10 @@ class HTML5_Tokenizer {
 
                     } elseif($char === '&') {
                         /* U+0026 AMPERSAND (&)
-                        Switch to the entity in attribute value state. */
-                        $this->characterReferenceInAttributeValue();
+                        Switch to the entity in attribute value state, with the 
+                        additional allowed character  being U+003E 
+                        GREATER-THAN SIGN (>). */
+                        $this->characterReferenceInAttributeValue('>');
 
                     } elseif($char === '>') {
                         /* U+003E GREATER-THAN SIGN (>)
